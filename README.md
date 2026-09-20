@@ -1,2 +1,179 @@
-# Portfolio
-Software development portfolio for Nestor Rivers.
+# Nestor Rivers — Software Engineering Portfolio
+
+A collection of software engineering projects, technical experiments, and case studies covering backend development, data processing, intelligent systems, spatial computing, security, and applied problem solving.
+
+My professional background includes a BSc in Computer Science, an MSc in Intelligent Systems and Robotics, freelance development, programming work within the VCSE sector, and four years as the sole software developer at Chariot Transport Solutions.
+
+This repository brings together selected examples of that work.
+
+---
+
+## Professional Experience
+
+### Chariot Transport Solutions
+
+I spent four years as the company's sole software developer, designing and building a substantial software system for the transport business.
+
+Working as the only developer meant taking responsibility across the development lifecycle, including requirements analysis, system design, database design, application development, integrations, automation, security, testing, debugging, deployment, and ongoing maintenance.
+
+The original system is no longer available as a public project, so this portfolio documents selected aspects of the engineering work through reconstructed case studies and representative implementations.
+
+#### MFA & Context-Aware Authentication
+
+One of the security systems I designed and implemented was a multi-factor authentication and access-control system combining:
+
+* Email-based authentication tokens
+* Time-limited authentication challenges
+* Approved login locations
+* User-specific working schedules
+* Location-based access policies
+* Manager approval for exceptional login attempts
+
+The system used the user's location at login and compared it against locations authorised for that user, typically their workplace locations plus an optional personal location.
+
+Users also had their normal working hours stored as part of their account configuration. A login attempt outside those hours could trigger an approval workflow in which the user's direct manager was notified and asked to authorise the exceptional login.
+
+The design therefore combined authentication with contextual access-control policies rather than treating a successful username/password combination as sufficient evidence that a login should be permitted.
+
+A detailed case study and a sanitised portfolio implementation are being prepared separately.
+
+**Areas demonstrated:**
+
+* Authentication
+* Security engineering
+* Access control
+* Token-based verification
+* Geolocation
+* Temporal policies
+* Human-in-the-loop approval workflows
+* Backend architecture
+* Security/usability trade-offs
+
+---
+
+## Selected Projects
+
+### Supplier Allocation Engine
+
+A software project exploring allocation of suppliers against a set of requirements and constraints.
+
+The project focuses on translating a complex allocation problem into explicit business rules and an executable algorithm.
+
+**Areas demonstrated:**
+
+* Algorithm design
+* Constraint handling
+* Data modelling
+* Backend development
+* Automated processing
+
+[View project](./supplier-allocation-engine/)
+
+---
+
+### Transport Data Aggregator
+
+A project concerned with collecting, processing, and consolidating transport-related data from multiple sources.
+
+The project explores the engineering problems involved in transforming disparate data into a consistent structure suitable for further processing.
+
+**Areas demonstrated:**
+
+* Data processing
+* API/integration work
+* Data transformation
+* Error handling
+* Backend development
+
+[View project](./transport-data-aggregator/)
+
+---
+
+### AR Project
+
+A browser-based augmented-reality project exploring location-aware and spatial interaction on the web.
+
+The project combines web technologies with AR to create an interactive experience tied to the physical environment.
+
+**Areas demonstrated:**
+
+* JavaScript
+* Web APIs
+* Augmented reality
+* Spatial computing
+* Interactive web development
+
+
+[View project](./ar-project/)
+
+---
+
+### RuneCast
+
+A deep learning project exploring multivariate time-series forecasting for complex RuneScape item prices. RuneCast models relationships between crafted items and their precursor materials, using configurable dependency depth to investigate whether information from upstream components can improve price prediction.
+
+The project demonstrates practical machine learning engineering, including data collection and preprocessing, LSTM-based sequence modelling, automated hyperparameter optimisation with Optuna, and experimental comparison against a univariate baseline.
+
+**Areas demonstrated:**
+
+* Deep learning and LSTM time-series modelling
+* Multivariate data processing and feature engineering
+* Automated hyperparameter optimisation with Optuna
+* Python, PyTorch, Pandas and NumPy
+* Data collection, caching and reproducible ML workflows
+
+[View project](./RuneCast/)
+
+---
+
+## Technical Interests
+
+My projects tend to sit at the intersection of practical software engineering and technically interesting problems.
+
+Areas of particular interest include:
+
+* Python and Django
+* Backend systems
+* APIs and integrations
+* Data modelling and processing
+* Algorithms and optimisation
+* Intelligent systems
+* Robotics
+* Spatial computing
+* Security and authentication
+* Automation
+* Software architecture
+
+I particularly enjoy problems where the difficult part is understanding the system and its constraints before writing the code.
+
+---
+
+## Engineering Approach
+
+I approach software development as a problem-solving discipline rather than simply an exercise in implementing features.
+
+For significant projects, I aim to document:
+
+1. **The problem** — what needed to be solved and why.
+2. **The constraints** — technical, operational, or business limitations.
+3. **The design** — how the system was structured.
+4. **The difficult parts** — where straightforward solutions were insufficient.
+5. **The implementation** — how the design was translated into working software.
+6. **The trade-offs** — why particular approaches were chosen over alternatives.
+7. **The result** — what the implementation achieved.
+8. **The lessons** — what I would retain, change, or improve with hindsight.
+
+Where professional work cannot be published directly, I use reconstructed case studies and representative implementations to demonstrate the underlying engineering without exposing proprietary source code, data, or business information.
+
+---
+
+## About Me
+
+**Nestor Rivers**
+
+BSc Computer Science
+MSc Intelligent Systems & Robotics
+
+Software developer interested in building systems that solve difficult, real-world problems.
+
+[LinkedIn](https://www.linkedin.com/in/nestor-rivers/) · [GitHub](https://github.com/nestorrivers)
