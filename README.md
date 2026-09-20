@@ -18,24 +18,6 @@ Working as the only developer meant taking responsibility across the development
 
 The original system is no longer available as a public project, so this portfolio documents selected aspects of the engineering work through reconstructed case studies and representative implementations.
 
-#### MFA & Context-Aware Authentication
-
-One of the security systems I designed and implemented was a multi-factor authentication and access-control system combining:
-
-* Email-based authentication tokens
-* Time-limited authentication challenges
-* Approved login locations
-* User-specific working schedules
-* Location-based access policies
-* Manager approval for exceptional login attempts
-
-The system used the user's location at login and compared it against locations authorised for that user, typically their workplace locations plus an optional personal location.
-
-Users also had their normal working hours stored as part of their account configuration. A login attempt outside those hours could trigger an approval workflow in which the user's direct manager was notified and asked to authorise the exceptional login.
-
-The design therefore combined authentication with contextual access-control policies rather than treating a successful username/password combination as sufficient evidence that a login should be permitted.
-
-A detailed case study and a sanitised portfolio implementation are being prepared separately.
 
 **Areas demonstrated:**
 
@@ -52,6 +34,23 @@ A detailed case study and a sanitised portfolio implementation are being prepare
 ---
 
 ## Selected Projects
+
+
+### Context-Aware MFA & Access Control
+
+A security-focused authentication system developed at Chariot Transport Solutions, combining email-based MFA with contextual access controls based on user location and working hours. Login requests outside a user's expected location or normal working pattern could trigger a manager approval workflow before access was granted.
+
+The project demonstrates practical security engineering beyond basic authentication, including risk-based access decisions, geolocation checks, time-based policies, token-based verification, and human-in-the-loop approval workflows.
+
+**Areas demonstrated:**
+
+* Authentication and access-control design
+* Email-based MFA and token verification
+* Geolocation and time-based security policies
+* Risk-adaptive access decisions
+* Backend security engineering and workflow design
+
+[View project](./mfa-implementation/)
 
 ### Supplier Allocation Engine
 
