@@ -1,0 +1,285 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Pataverse {{ channel_name }} Viewer</title>
+
+    <!-- A-Frame + AR.js -->
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar-nft.js"></script>
+        <style>
+            body, html { margin:0; padding:0; overflow:hidden; font-family:sans-serif; height:100%; }
+            a-scene { width:100%; height:100%; }
+
+            #ui-bar {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                padding: 12px;
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+                background: rgba(0,0,0,0.4);
+                backdrop-filter: blur(6px);
+                z-index: 999;
+            }
+            .ui-btn {
+                padding: 10px 14px;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                color: #fff;
+                cursor: pointer;
+            }
+            #photoBtn { background: #2196F3; }
+            #videoBtn { background: #E91E63; }
+            #videoBtn.recording { background: #B00020; }
+        </style>
+</head>
+
+<body>
+
+    <!-- A-Frame AR scene -->
+    <a-scene 
+        embedded 
+        renderer="antialias: true; colorManagement: true"
+        vr-mode-ui="enabled: false"
+        arjs="sourceType: webcam; debugUIEnabled: false;"
+    >
+        <a-camera gps-camera rotation-reader></a-camera>  
+    </a-scene>
+
+    <!-- UI buttons -->
+    <div id="ui-bar">
+        <button id="photoBtn" class="ui-btn">📸 Take Photo</button>
+        <button id="videoBtn" class="ui-btn">🎥 Record Video</button>
+    </div>
+
+    <script>
+        (function() {
+            const ENDPOINT = "/api/channels/objects";
+            let lastPosition = null;
+            let watchId = null;
+            let recorder = null;
+            let recordedChunks = [];
+
+            // -------------------------------
+            // Get user location
+            // -------------------------------
+            async function getUserLocation() {
+                return new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) return reject("Geolocation not supported");
+                    navigator.geolocation.getCurrentPosition(
+                        pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+                        err => reject("Location error: " + err.message),
+                        { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
+                    );
+                });
+            }
+
+            // -------------------------------
+            // Fetch AR objects
+            // -------------------------------
+            async function fetchARObjects(lat, lon) {
+                const fixedLat = 52.88917574688012;
+                const fixedLon = -1.1520652785189567;
+                try {
+                    const resp = await fetch(`${ENDPOINT}/?latitude=${fixedLat}&longitude=${fixedLon}`, {
+                        method: "GET",
+                        credentials: "same-origin",
+                        headers: { "X-Requested-With": "XMLHttpRequest" }
+                    });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    return await resp.json();
+                } catch(e) {
+                    console.error("Failed to fetch AR objects", e);
+                    return [];
+                }
+            }
+
+
+            
+            // -------------------------------
+            // Render AR objects
+            // -------------------------------
+            {% if request.user.user_type == 'Admin' %}
+                // Check if server is locally hosted
+                const isLocalhost = window.location.hostname === 'localhost' || 
+                                    window.location.hostname === '127.0.0.1' ||
+                                    window.location.hostname.startsWith('192.168.') ||
+                                    window.location.hostname.startsWith('10.');
+                function renderARObjects(objects) {
+                    const scene = document.querySelector("  a-scene");
+
+                    document.querySelectorAll(".ar-item").forEach(e => e.remove());
+
+                    objects.forEach((obj, i) => {
+                        const entity = document.createElement("a-box");
+                        entity.classList.add("ar-item");
+
+                        // Stack them in front of camera
+                        entity.setAttribute("position", `0 1.5 ${-3 - i * 2}`);
+                        entity.setAttribute("depth", "0.5");
+                        entity.setAttribute("height", "1");
+                        entity.setAttribute("width", "1");
+                        entity.setAttribute("color", "#4CC3D9");
+
+                        const text = document.createElement("a-text");
+                        text.setAttribute("value", obj.text || "VISIBLE");
+                        text.setAttribute("align", "center");
+                        text.setAttribute("position", "0 1 0");
+
+                        entity.appendChild(text);
+                        scene.appendChild(entity);
+                    });
+                }
+            {% else %}
+
+                function renderARObjects(objects) {
+                    const scene = document.querySelector("a-scene");
+                    if (!scene) return;
+
+                    document.querySelectorAll(".ar-item").forEach(e => e.remove());
+
+                    objects.forEach(obj => {
+                        const wrapper = document.createElement("a-entity");
+                        wrapper.classList.add("ar-item");
+                        wrapper.setAttribute("gps-entity-place", `latitude: ${obj.latitude}; longitude: ${obj.longitude};`);
+
+                        const shape = obj.shape || "box";
+                        let geometry = `primitive: ${shape};`;
+
+                        if (shape === "box")    geometry += ` width: ${obj.width}; height: ${obj.height}; depth: ${obj.depth}`;
+                        if (shape === "sphere") geometry += ` radius: ${obj.width / 2}`;
+                        if (shape === "cylinder") geometry += ` radius: ${obj.width / 2}; height: ${obj.height}`;
+
+                        const bg = document.createElement("a-entity");
+                        bg.setAttribute("geometry", geometry);
+                        bg.setAttribute("material", "color: #444; opacity: 0.8");
+                        bg.setAttribute("rotation", obj.rotation.join(" "));
+                        bg.setAttribute("position", "0 0 0");
+
+                        const text = document.createElement("a-text");
+                        text.setAttribute("value", obj.text);
+                        text.setAttribute("color", "white");
+                        text.setAttribute("align", "center");
+                        text.setAttribute("position", "0 1 0");
+                        text.setAttribute("look-at", "[gps-camera]");
+
+                        wrapper.appendChild(bg);
+                        wrapper.appendChild(text);
+                        scene.appendChild(wrapper);
+                    });
+                }
+            {% endif %}
+
+            // -------------------------------
+            // Start tracking user position
+            // -------------------------------
+            function startTracking() {
+                if (watchId || !lastPosition) return;
+
+                watchId = navigator.geolocation.watchPosition(pos => {
+                    if (pos.coords.accuracy < 10) {
+                        console.log("High accuracy fix acquired:", pos.coords);
+                        navigator.geolocation.clearWatch(watchId);
+                        watchId = null;
+                    }
+                });
+            }
+
+            // -------------------------------
+            // Periodic refresh
+            // -------------------------------
+            function startPeriodicRefresh() {
+                setInterval(async () => {
+                    if (!lastPosition) return;
+                    const objects = await fetchARObjects(lastPosition.lat, lastPosition.lon);
+                    renderARObjects(objects);
+                }, 60000);
+            }
+
+            // -------------------------------
+            // Initialise AR
+            // -------------------------------
+            async function initAR() {
+                try {
+                    const pos = await getUserLocation();
+                    lastPosition = pos;
+
+                    const objects = await fetchARObjects(pos.lat, pos.lon);
+                    renderARObjects(objects);
+
+                    startTracking();
+                    startPeriodicRefresh();
+                } catch(err) {
+                    console.warn("Geolocation failed, using fallback");
+                    lastPosition = { lat: 51.5074, lon: -0.1278 };
+                    const objects = await fetchARObjects(lastPosition.lat, lastPosition.lon);
+                    renderARObjects(objects);
+                    startPeriodicRefresh();
+                }
+            }
+
+            // -------------------------------
+            // Photo button
+            // -------------------------------
+            document.getElementById("photoBtn").addEventListener("click", () => {
+                const canvas = document.querySelector("canvas");
+                if (!canvas) return;
+                const link = document.createElement("a");
+                link.download = `pataverse_photo_${Date.now()}.png`;
+                link.href = canvas.toDataURL("image/png");
+                link.click();
+            });
+
+            // -------------------------------
+            // Video recording
+            // -------------------------------
+            const videoBtn = document.getElementById("videoBtn");
+
+            videoBtn.addEventListener("click", () => {
+                const canvas = document.querySelector("canvas");
+                if (!canvas) return;
+
+                if (!recorder) {
+                    recordedChunks = [];
+                    const stream = canvas.captureStream(30);
+                    recorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+
+                    recorder.ondataavailable = e => recordedChunks.push(e.data);
+                    recorder.onstop = () => {
+                        const blob = new Blob(recordedChunks, { type: "video/webm" });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement("a");
+                        link.href = url;
+                        link.download = `pataverse_video_${Date.now()}.webm`;
+                        link.click();
+
+                        recorder = null;
+                        videoBtn.classList.remove("recording");
+                        videoBtn.textContent = "🎥 Record Video";
+                    };
+
+                    recorder.start();
+                    videoBtn.classList.add("recording");
+                    videoBtn.textContent = "⏹ Stop Recording";
+
+                } else {
+                    recorder.stop();
+                }
+            });
+
+            // -------------------------------
+            // Start AR
+            // -------------------------------
+            window.addEventListener("load", initAR);
+
+        })();
+    </script>
+
+
+</body>
+</html>

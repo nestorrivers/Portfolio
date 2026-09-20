@@ -1,0 +1,525 @@
+{% extends base_template %}
+{% load static %}
+{% block title %}
+<title>Pataverse – AR Text Object Form</title>
+{% endblock %}
+{% block content %}
+<style>
+	body { margin:0; padding:0; background: linear-gradient(180deg, #0c1014, #0a0d10); color: #e2e6eb; font-family: 'Inter', sans-serif; }
+	.container { max-width: 800px; margin: 2rem auto; }
+	.form-card { background: #11161b; border: 1px solid #2c3c45; border-radius: 10px; padding: 2rem; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
+	h1 { font-family:'Orbitron'; color:#a4dffe; text-transform:uppercase; letter-spacing:2px; text-align:center; margin-bottom:1.5rem; }
+	label { font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; }
+	input, textarea, select { background:#131920 !important; border:1px solid #2c3c45 !important; color:#e2e6eb !important; font-family:'Inter', sans-serif !important; }
+	textarea { resize: vertical; }
+	.btn-exciting { background: linear-gradient(135deg, #1c2530, #24303c); border: 1px solid #2e3c48; color: #7fc7ff; font-family: 'Orbitron'; text-transform: uppercase; letter-spacing: 1px; padding:0.55rem 1.25rem; border-radius:6px; box-shadow: 0 4px 15px rgba(0,150,255,0.25); transition: 0.2s; }
+	.btn-exciting:hover { background: linear-gradient(135deg, #24303c, #2f3d4a); box-shadow: 0 6px 22px rgba(0,150,255,0.35); }
+	a-scene, locar-scene { height: 300px !important; width: 100%; display: block; }
+	.preview-box { min-height: 320px; }
+	#arPreviewContainer { display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:9999; }
+	#closeARPreview { position:absolute; top:10px; right:10px; z-index:10000; background:#111; color:#0ff; border:1px solid #0ff; padding:6px 12px; border-radius:6px; cursor:pointer; }
+</style>
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="{% static 'js/locar-0.1.4/locar.umd.min.js' %}"></script>
+<div class="container">
+	<div class="form-card">
+		<h1>{% if form.instance.pk %}Edit{% else %}Create{% endif %} AR Text Object</h1>
+		<form method="post" id="arTextForm">
+			{% csrf_token %}
+			<!-- Basic Info Section -->
+			<details open>
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Basic Information</summary>
+				<div class="mb-3">
+					<label>Title</label>
+					<input type="text" name="title" class="form-control" placeholder="Object Title" value="{{ form.title.value|default_if_none:'' }}" required>
+				</div>
+				<div class="mb-3">
+					<label>Description</label>
+					<textarea name="description" class="form-control" rows="3" placeholder="Optional description">{{ form.description.value|default_if_none:'' }}</textarea>
+				</div>
+				<div class="mb-3">
+					<label>Text Content</label>
+					<textarea name="text_content" id="text_content" class="form-control" rows="3" placeholder="Enter your text">{{ form.text_content.value|default_if_none:'' }}</textarea>
+				</div>
+				<div class="row g-3">
+					<div class="col-md-6">
+						<label>Is Active</label>
+						<input type="checkbox" name="is_active" class="form-check-input ms-2" {% if form.is_active.value %}checked{% endif %}>
+					</div>
+				</div>
+			</details>
+
+			<!-- Text Styling Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Text Styling</summary>
+				<div class="row g-3 mt-3">
+					<div class="col-md-4">
+						<label>Font Size</label>
+						<input type="number" name="font_size" class="form-control" step="0.01" value="{{ form.font_size.value|default_if_none:'0.5' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Text Width</label>
+						<input type="number" name="text_width" id="text_width" class="form-control" step="0.1" value="{{ form.text_width.value|default_if_none:'2' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Wrap Count</label>
+						<input type="number" name="text_wrap_count" id="text_wrap_count" class="form-control" value="{{ form.text_wrap_count.value|default_if_none:'40' }}">
+					</div>
+				</div>
+				<div class="row g-3 mt-3">
+					<div class="col-md-4">
+						<label>Text Align</label>
+						<select name="text_align" id="text_align" class="form-select">
+						{% for value, label in form.text_align.field.choices %}
+						<option value="{{ value }}" {% if form.text_align.value == value %}selected{% endif %}>{{ label }}</option>
+						{% endfor %}
+						</select>
+					</div>
+					<div class="col-md-4">
+						<label>Text Opacity</label>
+						<input type="number" name="text_opacity" id="text_opacity" class="form-control" step="0.1" min="0" max="1" value="{{ form.text_opacity.value|default_if_none:'1' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Text Colour</label>
+						<select name="text_colour" id="text_colour" class="form-select">
+						{% for value, label in form.text_colour.field.choices %}
+						<option value="{{ value }}" {% if form.text_colour.value == value %}selected{% endif %}>{{ label }}</option>
+						{% endfor %}
+						</select>
+					</div>
+				</div>
+			</details>
+
+            <!-- Location Section -->
+            <details class="mt-3">
+                <summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Location</summary>
+                <div class="row g-3 mt-3">
+                    <div class="col-md-4">
+                        <label>Latitude</label>
+                        <input type="number" name="latitude" id="latitude" class="form-control" step="any" value="{{ form.latitude.value|default_if_none:'' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label>Longitude</label>
+                        <input type="number" name="longitude" id="longitude" class="form-control" step="any" value="{{ form.longitude.value|default_if_none:'' }}" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label>Altitude</label>
+                        <input type="number" name="altitude" id="altitude" class="form-control" step="0.1" value="{{ form.altitude.value|default_if_none:'' }}">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="button" id="useMyLocation" class="btn-exciting">Use My Current Location</button>
+                </div>
+
+                <script>
+                    document.getElementById('useMyLocation').addEventListener('click', function() {
+                        if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(function(position) {
+                                document.getElementById('latitude').value = position.coords.latitude;
+                                document.getElementById('longitude').value = position.coords.longitude;
+                                if (position.coords.altitude) {
+                                    document.getElementById('altitude').value = position.coords.altitude;
+                                }
+                            }, function(error) {
+                                alert('Unable to get location: ' + error.message);
+                            });
+                        } else {
+                            alert('Geolocation is not supported by this browser.');
+                        }
+                    });
+                </script>
+            </details>
+
+			<!-- Template & Visibility Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Template & Visibility</summary>
+                <div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Template</label>
+						<select name="template" id="template" class="form-select">
+							<option value="">-- None --</option>
+							{% for value, label in form.template.field.choices %}
+							<option value="{{ value }}" {% if form.template.value == value %}selected{% endif %}>{{ label }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="col-md-6">
+						<label>Visibility</label>
+						<select name="visibility" class="form-select">
+						{% for value, label in form.visibility.field.choices %}
+						<option value="{{ value }}" {% if form.visibility.value == value %}selected{% endif %}>{{ label }}</option>
+						{% endfor %}
+						</select>
+					</div>
+				</div>
+			</details>
+
+			<!-- Position & Offset Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Position & Offset</summary>
+				<div class="row g-3 mt-3">
+					<div class="col-md-4">
+						<label>Offset X</label>
+						<input type="number" name="text_offset_x" id="text_offset_x" class="form-control" step="0.1" value="{{ form.text_offset_x.value|default_if_none:'0' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Offset Y</label>
+						<input type="number" name="text_offset_y" id="text_offset_y" class="form-control" step="0.1" value="{{ form.text_offset_y.value|default_if_none:'-0.3' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Offset Z</label>
+						<input type="number" name="text_offset_z" id="text_offset_z" class="form-control" step="0.1" value="{{ form.text_offset_z.value|default_if_none:'0' }}">
+					</div>
+				</div>
+			</details>
+
+			<!-- Shape & Geometry Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Shape & Geometry</summary>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Shape</label>
+						<select name="shape" id="shape" class="form-select">
+						{% for value, label in form.shape.field.choices %}
+						<option value="{{ value }}" {% if form.shape.value == value %}selected{% endif %}>{{ label }}</option>
+						{% endfor %}
+						</select>
+					</div>
+					<div class="col-md-6">
+						<label>Colour</label>
+						<select name="object_colour" id="object_colour" class="form-select">
+						{% for value, label in form.object_colour.field.choices %}
+						<option value="{{ value }}" {% if form.object_colour.value == value %}selected{% endif %}>{{ label }}</option>
+						{% endfor %}
+						</select>
+					</div>
+				</div>
+				<div class="row g-3 mt-3">
+					<div class="col-md-4">
+						<label>Width</label>
+						<input type="number" name="width" id="width" class="form-control" step="0.1" value="{{ form.width.value|default_if_none:'' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Height</label>
+						<input type="number" name="height" id="height" class="form-control" step="0.1" value="{{ form.height.value|default_if_none:'' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Depth</label>
+						<input type="number" name="depth" id="depth" class="form-control" step="0.1" value="{{ form.depth.value|default_if_none:'' }}">
+					</div>
+				</div>
+				<div class="row g-3 mt-3">
+					<div class="col-md-4">
+						<label>Radius</label>
+						<input type="number" name="radius" id="radius" class="form-control" step="0.1" value="{{ form.radius.value|default_if_none:'' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Radius Top</label>
+						<input type="number" name="radius_top" id="radius_top" class="form-control" step="0.1" value="{{ form.radius_top.value|default_if_none:'' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Radius Bottom</label>
+						<input type="number" name="radius_bottom" id="radius_bottom" class="form-control" step="0.1" value="{{ form.radius_bottom.value|default_if_none:'' }}">
+					</div>
+				</div>
+			</details>
+
+			<!-- Model & Texture Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Model & Texture</summary>
+				<div class="mb-3 mt-3">
+					<label>Model URL (GLTF)</label>
+					<input type="url" name="model_url" id="model_url" class="form-control" placeholder="https://example.com/model.gltf" value="{{ form.model_url.value|default_if_none:'' }}">
+				</div>
+				<div class="mb-3">
+					<label>Texture URL</label>
+					<input type="url" name="texture_url" id="texture_url" class="form-control" placeholder="https://example.com/texture.png" value="{{ form.texture_url.value|default_if_none:'' }}">
+				</div>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Texture Repeat X</label>
+						<input type="number" name="texture_repeat_x" id="texture_repeat_x" class="form-control" step="0.1" value="{{ form.texture_repeat_x.value|default_if_none:'1' }}">
+					</div>
+					<div class="col-md-6">
+						<label>Texture Repeat Y</label>
+						<input type="number" name="texture_repeat_y" id="texture_repeat_y" class="form-control" step="0.1" value="{{ form.texture_repeat_y.value|default_if_none:'1' }}">
+					</div>
+				</div>
+			</details>
+
+			<!-- Rotation Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Rotation</summary>
+				<div class="row g-3 mt-3">
+					<div class="col-md-4">
+						<label>Rotation X</label>
+						<input type="number" name="rotation_x" id="rotation_x" class="form-control" step="1" value="{{ form.rotation_x.value|default_if_none:'0' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Rotation Y</label>
+						<input type="number" name="rotation_y" id="rotation_y" class="form-control" step="1" value="{{ form.rotation_y.value|default_if_none:'0' }}">
+					</div>
+					<div class="col-md-4">
+						<label>Rotation Z</label>
+						<input type="number" name="rotation_z" id="rotation_z" class="form-control" step="1" value="{{ form.rotation_z.value|default_if_none:'0' }}">
+					</div>
+				</div>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Billboard</label>
+						<input type="checkbox" name="billboard" class="form-check-input ms-2" {% if form.billboard.value %}checked{% endif %}>
+					</div>
+				</div>
+			</details>
+
+			<!-- Material Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Material Properties</summary>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Material Opacity</label>
+						<input type="number" name="material_opacity" id="material_opacity" class="form-control" step="0.1" min="0" max="1" value="{{ form.material_opacity.value|default_if_none:'1' }}">
+					</div>
+					<div class="col-md-6">
+						<label>Material Metalness</label>
+						<input type="number" name="material_metalness" id="material_metalness" class="form-control" step="0.1" min="0" max="1" value="{{ form.material_metalness.value|default_if_none:'0' }}">
+					</div>
+				</div>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Material Roughness</label>
+						<input type="number" name="material_roughness" id="material_roughness" class="form-control" step="0.1" min="0" max="1" value="{{ form.material_roughness.value|default_if_none:'0.5' }}">
+					</div>
+					<div class="col-md-6">
+						<label>Material Transparent</label>
+						<input type="checkbox" name="material_transparent" class="form-check-input ms-2" {% if form.material_transparent.value %}checked{% endif %}>
+					</div>
+				</div>
+			</details>
+
+			<!-- Shadows Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Shadows</summary>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Cast Shadow</label>
+						<input type="checkbox" name="cast_shadow" class="form-check-input ms-2" {% if form.cast_shadow.value %}checked{% endif %}>
+					</div>
+					<div class="col-md-6">
+						<label>Receive Shadow</label>
+						<input type="checkbox" name="receive_shadow" class="form-check-input ms-2" {% if form.receive_shadow.value %}checked{% endif %}>
+					</div>
+				</div>
+			</details>
+
+			<!-- Interaction & Animation Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Interaction & Animation</summary>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Clickable</label>
+						<input type="checkbox" name="clickable" class="form-check-input ms-2" {% if form.clickable.value %}checked{% endif %}>
+					</div>
+					<div class="col-md-6">
+						<label>Hover Enabled</label>
+						<input type="checkbox" name="hover_enabled" class="form-check-input ms-2" {% if form.hover_enabled.value %}checked{% endif %}>
+					</div>
+				</div>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Dwell Time (ms)</label>
+						<input type="number" name="dwell_time_ms" id="dwell_time_ms" class="form-control" step="50" value="{{ form.dwell_time_ms.value|default_if_none:'2000' }}">
+					</div>
+					<div class="col-md-6">
+						<label>Scale on Hover</label>
+						<input type="number" name="scale_on_hover" class="form-control" step="0.1" value="{{ form.scale_on_hover.value|default_if_none:'1' }}">
+					</div>
+				</div>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Animation Enabled</label>
+						<input type="checkbox" name="animation_enabled" class="form-check-input ms-2" {% if form.animation_enabled.value %}checked{% endif %}>
+					</div>
+					<div class="col-md-6">
+						<label>Animation Type</label>
+						<input type="text" name="animation_type" class="form-control" placeholder="e.g. rotation, bounce" value="{{ form.animation_type.value|default_if_none:'' }}">
+					</div>
+				</div>
+			</details>
+
+			<button type="submit" class="btn-exciting mt-4">Save Object</button>
+		</form>
+	</div>
+
+	<!-- Live Preview Section -->
+	<div class="preview-box mt-4">
+		<a-scene embedded id="previewScene">
+			<a-entity id="previewWrapper" position="0 1.6 -2">
+				<a-entity id="previewBg" geometry="primitive: plane; width:2; height:1" material="color:#FFFFFF; opacity:0.4">
+					<a-text id="previewText" value="Your text here" color="#000000" width="2" align="center" wrap-count="40" position="0 -0.3 0"></a-text>
+				</a-entity>
+			</a-entity>
+			<a-sky color="rgba(21,124,234,1)"></a-sky>
+		</a-scene>
+	</div>
+    <!-- AR Preview Button -->
+    <button type="button" id="openARPreview" class="btn-exciting mt-3 w-100">Preview in AR</button>
+
+    <!-- AR Preview Container -->
+    <div id="arPreviewContainer">
+        <button id="closeARPreview">Close AR</button>
+        <locar-scene id="arScene" embedded ar-mode="locar"></locar-scene>
+    </div>
+
+    <script>
+        // AR Preview functionality
+        const openARBtn = document.getElementById('openARPreview');
+        const arContainer = document.getElementById('arPreviewContainer');
+        const closeARBtn = document.getElementById('closeARPreview');
+        const arScene = document.getElementById('arScene');
+
+        openARBtn.addEventListener('click', async function() {
+            // Show AR container
+            arContainer.style.display = 'block';
+            
+            // Wait for scene to be ready
+            await new Promise(resolve => {
+                if (arScene.hasLoaded) {
+                    resolve();
+                } else {
+                    arScene.addEventListener('loaded', resolve, { once: true });
+                }
+            });
+            
+            // Get form values
+            const textContent = document.getElementById('text_content').value || 'Your text here';
+            const textWidth = document.getElementById('text_width').value || 2;
+            const textAlign = document.getElementById('text_align').value || 'center';
+            const wrapCount = document.getElementById('text_wrap_count').value || 40;
+            const textColour = document.getElementById('text_colour').value || '#FFF';
+            const bgColour = document.getElementById('object_colour').value || '#000';
+            const opacity = document.getElementById('text_opacity').value || 0.4;
+            
+            // Get or create camera-relative entity
+            let cameraEntity = arScene.querySelector('[camera]');
+            if (!cameraEntity) {
+                cameraEntity = document.createElement('a-entity');
+                cameraEntity.setAttribute('camera', '');
+                cameraEntity.setAttribute('look-controls', '');
+                arScene.appendChild(cameraEntity);
+            }
+            
+            // Create AR content positioned in front of camera
+            const arEntity = document.createElement('a-entity');
+            arEntity.setAttribute('position', '0 0 -2');
+            arEntity.innerHTML = `
+                <a-entity geometry="primitive: plane; width:${textWidth}; height:1" 
+                          material="color:${bgColour}; opacity:${opacity}">
+                    <a-text value="${textContent}" 
+                            color="${textColour}" 
+                            width="${textWidth}" 
+                            align="${textAlign}" 
+                            wrap-count="${wrapCount}" 
+                            position="0 0 0.01"></a-text>
+                </a-entity>
+            `;
+            arScene.appendChild(arEntity);
+        });
+
+        closeARBtn.addEventListener('click', function() {
+            arContainer.style.display = 'none';
+            // Clean up AR entities
+            const entities = arScene.querySelectorAll('a-entity:not([camera])');
+            entities.forEach(e => e.remove());
+        });
+    </script>
+
+</div>
+<script>
+	// Dynamic live preview
+	const formFields = [
+	    'text_content','text_width','text_align','text_wrap_count','text_offset_x','text_offset_y','text_offset_z',
+	    'text_colour','object_colour','text_opacity','shape','width','height','depth','radius','radius_top','radius_bottom',
+        'radius_bottom', 'model_url','texture_url','texture_repeat_x','texture_repeat_y', 'rotation_x','rotation_y','rotation_z',
+        'billboard', 'material_opacity','material_metalness','material_roughness','material_transparent',
+        'cast_shadow','receive_shadow','dwell_time_ms', 'scale_on_hover','animation_enabled','animation_type'
+	];
+	
+	const previewText = document.getElementById('previewText');
+	const previewBg = document.getElementById('previewBg');
+	const shapeEl = document.getElementById('shape');
+	
+	const template = document.getElementById('template');
+	
+	function updatePreview() {
+	    // Text
+	    previewText.setAttribute('value', document.getElementById('text_content').value || 'Your text here');
+	    previewText.setAttribute('width', document.getElementById('text_width').value || 2);
+	    previewText.setAttribute('align', document.getElementById('text_align').value || 'center');
+	    previewText.setAttribute('wrap-count', document.getElementById('text_wrap_count').value || 40);
+	    const posX = parseFloat(document.getElementById('text_offset_x').value) || 0;
+	    const posY = parseFloat(document.getElementById('text_offset_y').value) || -0.3;
+	    const posZ = parseFloat(document.getElementById('text_offset_z').value) || 0;
+	    previewText.setAttribute('position', `${posX} ${posY} ${posZ}`);
+	    previewText.setAttribute('color', document.getElementById('text_colour').value || '#FFF');
+	
+	    // Background
+	    previewBg.setAttribute('material', 'color:' + (document.getElementById('object_colour').value || '#000') + '; opacity:' + (document.getElementById('text_opacity').value || 0.4));
+	
+	    // Geometry
+	    const shape = document.getElementById('shape').value;
+	    let geo = {primitive:'plane', width:2, height:1};
+	    if(shape === 'plane') {
+	        geo = {primitive:'plane', width: document.getElementById('width').value || 2, height: document.getElementById('height').value || 1};
+	    } else if(shape === 'box') {
+	        geo = {primitive:'box', width: document.getElementById('width').value || 1, height: document.getElementById('height').value ||1, depth: document.getElementById('depth').value ||1};
+	    } else if(shape === 'sphere') {
+	        geo = {primitive:'sphere', radius: document.getElementById('radius').value ||1};
+	    } else if(shape === 'cylinder') {
+	        geo = {primitive:'cylinder', radiusTop: document.getElementById('radius_top').value ||1, radiusBottom: document.getElementById('radius_bottom').value ||1, height: document.getElementById('height').value ||1};
+	    } else if(shape === 'cone') {
+	        geo = {primitive:'cone', radiusBottom: document.getElementById('radius_bottom').value ||1, height: document.getElementById('height').value ||1};
+	    } else if(shape === 'circle') {
+	        geo = {primitive:'circle', radius: document.getElementById('radius').value ||1};
+	    } else if(shape === 'torus') {
+	        geo = {primitive:'torus', radius: document.getElementById('radius').value ||1, tube:0.1};
+	    }
+	
+	    previewBg.setAttribute('geometry', geo);
+	}
+	
+	function applyTemplate(template) {
+	    const url = `/objects/templates/fetch/${template}/`;
+        console.log('Fetching template from:', url);
+	    fetch(url)
+	        .then(response => response.json())
+	        .then(data => {
+	            for (const [key, value] of Object.entries(data)) {
+	                const field = document.querySelector(`[name="${key}"]`);
+	                if (field) {
+	                    if (field.type === 'checkbox') {
+	                        field.checked = value;
+	                    } else {
+	                        field.value = value;
+	                    }
+	                }
+	            }
+	            updatePreview();
+	        })
+	        .catch(error => console.error('Error fetching template:', error));
+	}
+	
+    template.addEventListener('change', function() {
+        if (this.value) {
+            applyTemplate(this.value);
+        }
+    });
+	
+	formFields.forEach(f => {
+	    const el = document.getElementById(f);
+	    if(el) el.addEventListener('input', updatePreview);
+	});
+	
+	updatePreview();
+</script>
+{% endblock %}

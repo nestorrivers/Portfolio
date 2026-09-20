@@ -1,0 +1,47 @@
+{% extends "base_templates/marketing_base.html" %}{% load static %}
+    
+{% block content %}
+    <!-- Registration Form -->
+    <div class="form-box">
+        <h2>Register</h2>
+        <form method="post" action="{% url 'register' %}">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <input type="text" name="username" class="form-control" placeholder="Choose a username">
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">First Name</label>
+                    <input type="text" name="first_name" class="form-control" placeholder="Enter your first name">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Last Name</label>
+                    <input type="text" name="last_name" class="form-control" placeholder="Enter your last name">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Date of Birth</label>
+                <input type="date" name="birth_date" class="form-control" placeholder="Enter your date of birth">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input type="email" name="email" class="form-control" placeholder="you@example.com">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" name="password1" class="form-control" placeholder="Create a password">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Confirm Password</label>
+                <input type="password" name="password2" class="form-control" placeholder="Repeat your password">
+            </div>
+            <button class="btn btn-custom w-100" type="submit">Create Account</button>
+        </form>
+    </div>
+{% endblock %}

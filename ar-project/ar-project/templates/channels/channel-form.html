@@ -1,0 +1,85 @@
+{% extends 'base_templates/admin-base.html' %}
+{% load static %}
+{% block title %}
+<title>Pataverse – Channel Form</title>
+{% endblock %}
+{% block content %}
+<style>
+	body { margin:0; padding:0; background: linear-gradient(180deg, #0c1014, #0a0d10); color: #e2e6eb; font-family: 'Inter', sans-serif; }
+	.container { max-width: 800px; margin: 2rem auto; }
+	.form-card { background: #11161b; border: 1px solid #2c3c45; border-radius: 10px; padding: 2rem; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
+	h1 { font-family:'Orbitron'; color:#a4dffe; text-transform:uppercase; letter-spacing:2px; text-align:center; margin-bottom:1.5rem; }
+	label { font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; }
+	input, textarea, select { background:#131920 !important; border:1px solid #2c3c45 !important; color:#e2e6eb !important; font-family:'Inter', sans-serif !important; }
+	textarea { resize: vertical; }
+	.btn-exciting { background: linear-gradient(135deg, #1c2530, #24303c); border: 1px solid #2e3c48; color: #7fc7ff; font-family: 'Orbitron'; text-transform: uppercase; letter-spacing: 1px; padding:0.55rem 1.25rem; border-radius:6px; box-shadow: 0 4px 15px rgba(0,150,255,0.25); transition: 0.2s; }
+	.btn-exciting:hover { background: linear-gradient(135deg, #24303c, #2f3d4a); box-shadow: 0 6px 22px rgba(0,150,255,0.35); }
+	a-scene, locar-scene { height: 300px !important; width: 100%; display: block; }
+	.preview-box { min-height: 320px; }
+	#arPreviewContainer { display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:9999; }
+	#closeARPreview { position:absolute; top:10px; right:10px; z-index:10000; background:#111; color:#0ff; border:1px solid #0ff; padding:6px 12px; border-radius:6px; cursor:pointer; }
+</style>
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="{% static 'js/locar-0.1.4/locar.umd.min.js' %}"></script>
+<div class="container">
+	<div class="form-card">
+		<h1>{% if form.instance.pk %}Edit{% else %}Create{% endif %} AR Channel</h1>
+		<form method="post" id="channelForm">
+			{% csrf_token %}
+			<!-- Basic Info Section -->
+			<details open>
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Basic Information</summary>
+				<div class="mb-3">
+					<label>Name</label>
+					<input type="text" name="name" class="form-control" placeholder="Channel Name" value="{{ form.name.value|default_if_none:'' }}" required>
+				</div>
+				<div class="mb-3">
+					<label>Description</label>
+					<textarea name="description" class="form-control" rows="3" placeholder="Channel description">{{ form.description.value|default_if_none:'' }}</textarea>
+				</div>
+			</details>
+
+			<!-- Channel Type & Theme Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Type & Theme</summary>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Channel Type</label>
+						<select name="channel_type" class="form-select">
+						{% for value, label in form.channel_type.field.choices %}
+						<option value="{{ value }}" {% if form.channel_type.value == value %}selected{% endif %}>{{ label }}</option>
+						{% endfor %}
+						</select>
+					</div>
+					<div class="col-md-6">
+						<label>Theme</label>
+						<select name="theme" class="form-select">
+						{% for value, label in form.theme.field.choices %}
+						<option value="{{ value }}" {% if form.theme.value == value %}selected{% endif %}>{{ label }}</option>
+						{% endfor %}
+						</select>
+					</div>
+				</div>
+			</details>
+
+			<!-- Date Range Section -->
+			<details class="mt-3">
+				<summary style="cursor:pointer; font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem; padding:0.5rem; background:#1a2229; border-radius:6px;">Date Range</summary>
+				<div class="row g-3 mt-3">
+					<div class="col-md-6">
+						<label>Start Date</label>
+						<input type="date" name="start_date" class="form-control" value="{{ form.start_date.value|default_if_none:'' }}">
+					</div>
+					<div class="col-md-6">
+						<label>End Date</label>
+						<input type="date" name="end_date" class="form-control" value="{{ form.end_date.value|default_if_none:'' }}">
+					</div>
+				</div>
+			</details>
+
+			<button type="submit" class="btn-exciting mt-4">Save Channel</button>
+		</form>
+	</div>
+
+</div>
+{% endblock %}

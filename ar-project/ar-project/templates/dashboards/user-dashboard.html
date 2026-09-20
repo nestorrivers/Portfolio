@@ -1,0 +1,105 @@
+{% extends "base_templates/user-base.html" %}{% load static %}
+
+{% block title %}<title>Pataverse - Dashboard</title>{% endblock %}
+{% block content %}
+        <div class="container py-5">
+			<h1 class="text-center" style="font-family:'Orbitron'; color:#a4dffe; text-transform:uppercase; letter-spacing:3px;">Dashboard</h1>
+			<p class="text-center mb-5" style="opacity:0.85;">Your creative world at a glance.</p>
+			<!-- ROW 1 -->
+			<div class="row g-4">
+				<div class="col-md-4 order-first">
+					<div class="dashboard-card">
+						<h3 class="dashboard-title">Quick Actions</h3>
+						<button class="btn-exciting w-100 mb-3">Create Text Object</button>
+						{% if request.user.approved_for_image_objects %}
+							<button class="btn-exciting w-100 mb-3">Create Image Object</button>
+						{% endif %}
+						<a href="{% url 'channel_list_user' %}" class="btn-exciting w-100 mb-3" style="display: inline-block; text-align: center; text-decoration: none;">View Channels</a>
+						<button class="btn-exciting w-100 mb-3">View Map</button>
+						<button class="btn-exciting w-100 mb-3">Profile</button>
+						<a href="{% url 'ar_text_object_list_user' %}" class="btn-exciting w-100 mb-3" style="display: inline-block; text-align: center; text-decoration: none;">Manage Objects</a>
+					</div>
+				</div>
+				<div class="col-md-4">
+					<div class="dashboard-card">
+						<h3 class="dashboard-title">Recent Creations</h3>
+						<div class="scroll-area">
+							<div class="recent-item">
+								<a href="#">Street Rune</a>
+								<div class="meta">Category: Sculpture | Created: 2 hours ago | Views: 34 | Likes: 12 | Comments: 3 | Location: Central Park</div>
+							</div>
+							<div class="recent-item">
+								<a href="#">Portal Node</a>
+								<div class="meta">Category: Marker | Created: Yesterday | Views: 21 | Likes: 5 | Comments: 1 | Location: Downtown</div>
+							</div>
+							<div class="recent-item">
+								<a href="#">Urban Ghost Walk</a>
+								<div class="meta">Category: Trail Item | Created: 3 days ago | Views: 57 | Likes: 19 | Comments: 7 | Location: Old Town</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-4">
+					<div class="dashboard-card">
+						<h3 class="dashboard-title">Notifications</h3>
+						{% for notification in notifications %}
+							<div class="notif-item">
+								<a href="#">{{ notification.message }}</a>
+								<div class="meta">{{ notification.created_at|timesince }} ago</div>
+								<a href="{% url 'notification_view' notification.id %}" class="btn-exciting mt-2">Read</a>
+							</div>
+						{% empty %}
+							<p>No new notifications.</p>
+						{% endfor %}
+					</div>
+				</div>
+			</div>
+			<!-- ROW 2 -->
+			<div class="row g-4 mt-2">
+				<div class="col-md-6">
+					<div class="dashboard-card">
+						<h3 class="dashboard-title">Activity</h3>
+						<ul class="nav nav-tabs mb-3 w-100 flex-nowrap" role="tablist" style="display:flex; gap:6px;">
+							<li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#obj">Objects</button></li>
+							<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#views">Views</button></li>
+							<li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#eng">Engagement</button></li>
+						</ul>
+						<div class="tab-content">
+							<div class="tab-pane fade show active" id="obj">
+								<div class="chart-placeholder">Objects Created</div>
+							</div>
+							<div class="tab-pane fade" id="views">
+								<div class="chart-placeholder">Views Over Time</div>
+							</div>
+							<div class="tab-pane fade" id="eng">
+								<div class="chart-placeholder">Engagement Metrics</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="dashboard-card">
+						<h3 class="dashboard-title">Trending Channels</h3>
+						<div class="scroll-area">
+							<div class="trending-item">
+								<a href="#">Mystic Path</a>
+								<div class="meta">Creator: Admin | Views: 120 | Likes: 45 | Last Update: 1 day ago</div>
+							</div>
+							<div class="trending-item">
+								<a href="#">Urban Adventure</a>
+								<div class="meta">Creator: User123 | Views: 98 | Likes: 30 | Last Update: 2 days ago</div>
+							</div>
+							<div class="trending-item">
+								<a href="#">Ghostly Walk</a>
+								<div class="meta">Creator: User456 | Views: 87 | Likes: 28 | Last Update: 3 days ago</div>
+							</div>
+							<div class="trending-item">
+								<a href="#">Historic Trail</a>
+								<div class="meta">Creator: Admin | Views: 75 | Likes: 20 | Last Update: 5 days ago</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+{% endblock %}

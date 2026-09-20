@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Pataverse</title>
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+		<style>
+			body {
+			margin: 0;
+			padding: 0;
+			background: linear-gradient(180deg, #0c1014 0%, #0a0d10 100%);
+			color: #e2e6eb;
+			font-family: "Exo 2", sans-serif;
+			line-height: 1.6;
+			}
+			a { color: #7fc7ff; text-decoration: none; }
+			a:hover { text-decoration: underline; }
+			header h1 {
+			font-size: 3rem;
+			letter-spacing: 4px;
+			color: #b7f0ff;
+			text-shadow: 0 2px 12px rgba(80, 180, 255, 0.5);
+			font-family: "Orbitron", sans-serif;
+			}
+			header p {
+			font-size: 1rem;
+			opacity: 0.85;
+			letter-spacing: 1.5px;
+			font-family: "Orbitron", sans-serif;
+			text-transform: uppercase;
+			}
+			nav a {
+			background: #131920;
+			padding: 0.75rem 1.25rem;
+			border-radius: 6px;
+			border: 1px solid #2e3c45;
+			font-family: "Orbitron", sans-serif;
+			transition: background 0.2s;
+			display: inline-block;
+			}
+			nav a:hover { background: #1c2530; }
+			.card-custom {
+			background: #11161b;
+			border: 1px solid #2c3c45;
+			box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+			border-radius: 6px;
+			text-align: center;
+			padding: 1.5rem;
+			height: 100%;
+			}
+			.icon {
+			font-size: 2.2rem;
+			opacity: 0.9;
+			margin-bottom: 0.5rem;
+			}
+			.card-custom h2 {
+			font-size: 1.6rem;
+			color: #a4dffe;
+			font-family: "Orbitron", sans-serif;
+			letter-spacing: 2px;
+			text-transform: uppercase;
+			}
+			.card-custom p {
+			font-family: "Orbitron", sans-serif;
+			font-weight: 300;
+			letter-spacing: 0.8px;
+			opacity: 0.9;
+			font-size: 0.95rem;
+			}
+			.form-box {
+			background: #11161b;
+			padding: 2rem;
+			border-radius: 6px;
+			border: 1px solid #2c3c45;
+			box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+			max-width: 400px;
+			margin: 2rem auto;
+			}
+			.form-box h2 {
+			font-family: "Orbitron", sans-serif;
+			color: #a4dffe;
+			text-align: center;
+			margin-bottom: 1.5rem;
+			text-transform: uppercase;
+			letter-spacing: 2px;
+			}
+			label {
+			font-family: "Orbitron", sans-serif;
+			text-transform: uppercase;
+			letter-spacing: 1px;
+			}
+			input, textarea, select {
+			background: #131920 !important;
+			border: 1px solid #2c3c45 !important;
+			color: #e2e6eb !important;
+			font-family: "Exo 2", sans-serif !important;
+			}
+			.btn-custom {
+			background: #1c2530;
+			border: 1px solid #2e3c48;
+			color: #7fc7ff;
+			font-family: "Orbitron", sans-serif;
+			text-transform: uppercase;
+			letter-spacing: 1px;
+			}
+			.btn-custom:hover { background: #24303c; }
+			footer {
+			margin-top: 4rem;
+			padding: 2rem 0;
+			text-align: center;
+			font-size: 0.9rem;
+			opacity: 0.7;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container py-5">
+			<header class="text-center mb-5">
+				<h1>PATAVERSE</h1>
+				<p>GPS-anchored augmented creativity, scattered across the world.</p>
+			</header>
+			<!-- Navigation -->
+			<nav class="d-flex justify-content-center gap-3 flex-wrap mb-5">
+				<a href="{% url 'home' %}">Home</a>
+				<a href="{% url 'how_it_works' %}">How It Works</a>
+				<a href="{% url 'download_app' %}">Download</a>
+				<a href="{% url 'contact_us' %}">Contact</a>
+				<a href="{% url 'login' %}">Login</a>
+				<a href="{% url 'register' %}">Register</a>
+			</nav>
+			{% block content %}
+			{% endblock %}
+			{% comment %} <!-- Object Creation Form -->
+			<div class="form-box">
+				<h2>Create Object</h2>
+				<form>
+					<div class="mb-3">
+						<label class="form-label">Title</label>
+						<input type="text" class="form-control" placeholder="Object title">
+					</div>
+					<div class="mb-3">
+						<label class="form-label">Description</label>
+						<textarea class="form-control" rows="3" placeholder="Describe your object..."></textarea>
+					</div>
+					<div class="mb-3">
+						<label class="form-label">Latitude</label>
+						<input type="number" class="form-control" step="any" placeholder="e.g. 51.5074">
+					</div>
+					<div class="mb-3">
+						<label class="form-label">Longitude</label>
+						<input type="number" class="form-control" step="any" placeholder="e.g. -0.1278">
+					</div>
+					<div class="mb-3">
+						<label class="form-label">Category</label>
+						<select class="form-select">
+							<option>Sign</option>
+							<option>Sculpture</option>
+							<option>Note</option>
+							<option>Marker</option>
+							<option>Trail Item</option>
+						</select>
+					</div>
+					<div class="mb-3">
+						<label class="form-label">Media URL (optional)</label>
+						<input type="url" class="form-control" placeholder="Link to an image, video, or 3D file">
+					</div>
+					<button class="btn btn-custom w-100" type="submit">Create Object</button>
+				</form>
+			</div> {% endcomment %}
+			<footer>
+				© 2025 Pataverse — Exploring the world, one AR object at a time.
+			</footer>
+		</div>
+	</body>
+</html>

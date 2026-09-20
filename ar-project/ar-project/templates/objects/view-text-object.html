@@ -1,0 +1,129 @@
+{% extends base_template %}{% load static %}
+
+{% block title %}<title>Pataverse - AR Text Object Details</title>{% endblock %}
+{% block content %}
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <style>
+        body { margin:0; padding:0; background: linear-gradient(180deg,#0c1014,#0a0d10); color:#e2e6eb; font-family:'Inter',sans-serif; }
+        .navbar { background:#131920; border-bottom:1px solid #2c3c45; }
+        .navbar-brand { font-family:'Orbitron'; font-size:1.4rem; color:#b7f0ff!important; letter-spacing:3px; text-shadow:0 2px 10px rgba(100,180,255,.4); }
+        .nav-link { font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1.5px; color:#a4dffe!important; }
+        .nav-link:hover { color:#7fc7ff!important; }
+        .page-wrapper { max-width:900px; margin:3rem auto; }
+        .card-custom { background:#11161b; border:1px solid #2c3c45; border-radius:12px; padding:2rem; box-shadow:0 6px 20px rgba(0,0,0,.35); }
+        .section-title { font-family:'Orbitron'; text-transform:uppercase; letter-spacing:2px; color:#a4dffe; font-size:1.5rem; margin-bottom:1rem; }
+        .field-label { font-family:'Orbitron'; text-transform:uppercase; letter-spacing:1px; font-size:0.85rem; opacity:0.8; }
+        .field-value { font-size:1.05rem; margin-bottom:0.8rem; }
+        .btn-back { background:linear-gradient(135deg,#1c2530,#24303c); border:1px solid #2e3c48; color:#7fc7ff; font-family:'Orbitron'; text-transform:uppercase; padding:.6rem 1.2rem; border-radius:6px; box-shadow:0 4px 15px rgba(0,150,255,.25); }
+        .btn-back:hover { background:linear-gradient(135deg,#24303c,#2f3d4a); box-shadow:0 6px 22px rgba(0,150,255,.35); }
+        .preview-box { background:#131920; border:1px solid #2c3c45; border-radius:10px; padding:1rem; margin-top:1rem; }
+        a-scene { width:100%; height:300px; }
+    </style>
+
+    <div class="page-wrapper">
+        <div class="card-custom mb-4">
+            <div class="section-title">AR Text Object Details</div>
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="field-label">Title</div>
+                    <div class="field-value">{{ ar_text_object.title }}</div>
+                </div>
+                <div class="col-md-12">
+                    <div class="field-label">Location</div>
+                    <div class="field-value">{{ ar_text_object.latitude }} / {{ ar_text_object.longitude }}</div>
+                </div>
+                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+                <style>
+                    #map { height: 220px; border-radius:10px; border:1px solid #2c3c45; margin-top:0.5rem; }
+                </style>
+
+                <div class="col-md-12">
+                    <div class="field-label">Map</div>
+                    <div id="map"></div>
+                </div>
+
+                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                <script>
+                    (function() {
+                        var lat = parseFloat('{{ ar_text_object.latitude|default:"0" }}');
+                        var lon = parseFloat('{{ ar_text_object.longitude|default:"0" }}');
+                        if (isNaN(lat) || isNaN(lon)) return;
+
+                        var map = L.map('map', { scrollWheelZoom: false }).setView([lat, lon], 15);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 19,
+                            attribution: '&copy; OpenStreetMap contributors'
+                        }).addTo(map);
+
+                        L.marker([lat, lon]).addTo(map)
+                            .bindPopup('{{ ar_text_object.title|escapejs }}')
+                            .openPopup();
+                    })();
+                </script>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-12 mt-2">
+                    <div class="field-label">Description</div>
+                    <div class="field-value">{{ ar_text_object.description }}</div>
+                </div>
+                <div class="col-md-12 mt-2">
+                    <div class="field-label">Visibility</div>
+                    <div class="field-value">{{ ar_text_object.visibility }}</div>
+                </div>
+            </div>
+
+            <!-- Live Preview Section -->
+            <div class="preview-box mt-4">
+                <a-scene embedded id="previewScene">
+                    <a-entity id="previewWrapper" position="0 1.6 -2">
+                        <a-entity id="previewBg" 
+                                geometry="primitive: {{ ar_text_object.shape }}; width:2; height:1" 
+                                material="color:{{ ar_text_object.object_colour|lower }}; opacity:{{ ar_text_object.background_opacity }};">
+                            <a-text id="previewText" 
+                                    value="Your text here" 
+                                    color="{{ ar_text_object.text_colour|lower }}" 
+                                    width="{{ ar_text_object.font_size }}" 
+                                    align="{{ ar_text_object.text_align }}" 
+                                    wrap-count="{{ ar_text_object.text_wrap_count }}" 
+                                    position="0 -0.3 0"
+                                    opacity="{{ ar_text_object.text_opacity }}"></a-text>
+                        </a-entity>
+                    </a-entity>
+                    <a-sky color="rgba(21,124,234,1)"></a-sky>
+                </a-scene>
+            </div>
+            <!-- AR Preview Button -->
+            <button type="button" id="openARPreview" class="btn-exciting mt-3 w-100">Preview in AR</button>
+
+            <!-- AR Preview Container -->
+            <div id="arPreviewContainer">
+                <button id="closeARPreview">Close AR</button>
+                <locar-scene id="arScene" embedded ar-mode="locar"></locar-scene>
+            </div>
+
+
+
+            <div class="text-end mt-4">
+                {% if object_interaction.liked == True %}
+                    <a href="{% url 'unlike_ar_text_object' ar_text_object.pk %}" class="btn-back">Unlike</a>
+                {% elif object_interaction.liked == False %}
+                    <a href="{% url 'like_ar_text_object' ar_text_object.pk %}" class="btn-back">Like</a>
+                {% endif %}
+                {% if object_interaction.hidden == True %}
+                    <a href="{% url 'unhide_ar_text_object' ar_text_object.pk %}" class="btn-back ms-2">Unhide</a>
+                {% else %}
+                    <a href="{% url 'hide_ar_text_object' ar_text_object.pk %}" class="btn-back ms-2">Hide</a>
+                {% endif %}
+                {% if request.user.user_type == 'User' %}
+                    <a href="{% url 'ar_text_object_list_user' %}" class="btn-back">Back</a>
+                {% elif request.user.user_type == 'Admin' %}
+                    <a href="{% url 'ar_text_object_list_admin' %}" class="btn-back">Back</a>
+                {% endif %}
+                {% if request.user == ar_text_object.creator %}
+                    <a href="{% url 'edit_ar_text_object' ar_text_object.pk %}" class="btn-back ms-2">Edit</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock %}
+

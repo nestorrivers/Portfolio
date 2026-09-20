@@ -1,0 +1,33 @@
+{% extends base_template %} {% load static %}
+
+{% block title %}<title>Pataverse - Notification View</title>{% endblock %}
+{% block content %}
+        <style>
+			body, html { height: 100%; margin:0; padding:0; background: linear-gradient(180deg, #0c1014 0%, #0a0d10 100%); color: #e2e6eb; font-family: 'Orbitron', sans-serif; display:flex; flex-direction:column; }
+			.navbar { background: #131920; border-bottom: 1px solid #2c3c45; }
+			.navbar-brand { font-family: 'Orbitron', sans-serif; font-size: 1.4rem; color: #b7f0ff !important; letter-spacing: 3px; text-shadow: 0 2px 10px rgba(100,180,255,0.4); }
+			.nav-link { font-family: 'Orbitron', sans-serif; text-transform: uppercase; letter-spacing: 1.5px; color: #a4dffe !important; }
+			.nav-link:hover { color: #7fc7ff !important; }
+			.main-content { flex:1; display:flex; justify-content:center; align-items:center; padding:2rem; }
+			.notification-card { background: #11161b; border: 1px solid #2c3c45; border-radius: 10px; padding: 2rem; box-shadow: 0 6px 20px rgba(0,0,0,0.35); max-width: 700px; width:100%; }
+			.notification-title { font-family: 'Orbitron', sans-serif; font-size: 1.6rem; color: #a4dffe; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem; }
+			.notification-message { font-family: 'Inter', sans-serif; font-size: 1rem; opacity: 0.9; margin-bottom: 1rem; line-height: 1.5; }
+			.notification-meta { font-size: 0.9rem; opacity: 0.8; text-align: right; }
+			.btn-back { background: linear-gradient(135deg, #1c2530, #24303c); border: 1px solid #2e3c48; color: #7fc7ff; font-family:'Orbitron'; text-transform: uppercase; letter-spacing:0.8px; padding:0.5rem 1rem; border-radius:6px; box-shadow: 0 4px 15px rgba(0,150,255,0.25); transition:0.2s; }
+			.btn-back:hover { background: linear-gradient(135deg, #24303c, #2f3d4a); box-shadow: 0 6px 22px rgba(0,150,255,0.35); }
+		</style>
+		<div class="main-content">
+			<div class="notification-card">
+				<div class="notification-title">Sample Notification Title</div>
+				<div class="notification-message">This is the message content of the notification. It can include multiple lines and provide detailed information to the user about actions, updates, or alerts.</div>
+				<div class="notification-meta">Created at: 2025-11-23 14:00</div>
+				<div class="text-end mt-3">
+					<a href="{% url 'user_home' %}" class="btn-back">Home</a>
+					<a href="#" class="btn-back">Back to Notifications</a>
+				</div>
+			</div>
+		</div>
+{% endblock %}
+
+
+
