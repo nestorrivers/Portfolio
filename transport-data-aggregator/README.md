@@ -9,7 +9,6 @@ A framework-agnostic Python library for ingesting UK public RSS data (weather, t
 | **Distribution name** | `public-data-aggregator` |
 | **Import name** | `public_data` |
 | **Python** | 3.11+ |
-| **Licence** | MIT |
 
 ---
 
