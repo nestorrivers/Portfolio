@@ -2,7 +2,7 @@
 
 A collection of software engineering projects, technical experiments, and case studies covering backend development, data processing, intelligent systems, spatial computing, security, and applied problem solving.
 
-My professional background includes a BSc in Computer Science, an MSc in Intelligent Systems and Robotics, freelance development, programming work within the VCSE sector, and four years as the sole software developer at Chariot Transport Solutions.
+My professional background includes a BSc in Computer Science, an MSc in Intelligent Systems and Robotics, freelance development, programming work within the VCSE sector, and four years as the lead software developer at Chariot Transport Solutions.
 
 This repository brings together selected examples of that work.
 
@@ -12,7 +12,7 @@ This repository brings together selected examples of that work.
 
 ### Chariot Transport Solutions
 
-I spent four years as the company's sole software developer, designing and building a substantial software system for the transport business.
+I spent four years as the company's lead software developer, designing and building a substantial software system for the transport business.
 
 Working as the only developer meant taking responsibility across the development lifecycle, including requirements analysis, system design, database design, application development, integrations, automation, security, testing, debugging, deployment, and ongoing maintenance.
 
