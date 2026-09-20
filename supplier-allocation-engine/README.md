@@ -67,7 +67,6 @@ python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 
 pip install -r requirements.txt
-pip install pytest-cov            # required by the addopts in pytest.ini
 ```
 
 ### Example
@@ -260,6 +259,6 @@ These reflect the current state of the code and are worth knowing before buildin
 
 ## Provenance
 
-This engine was distilled from a real-world transport booking system. Domain-specific identifiers, client data, and commercial logic have been intentionally generalised or omitted.
+This engine was written as a representation of similar work from a real-world transport booking system. Domain-specific identifiers, client data, and commercial logic have been intentionally generalised or omitted.
 
 The goal is to demonstrate system design and rule-driven allocation, not to expose proprietary behaviour.
