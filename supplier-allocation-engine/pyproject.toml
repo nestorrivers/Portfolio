@@ -1,0 +1,12 @@
+[project]
+name = "supplier-allocation-engine"
+version = "0.1.0"
+description = "A pure-Python engine for allocating service providers based on preferences, pricing, and proximity."
+requires-python = ">=3.10"
+
+dependencies = [
+    "haversine"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
