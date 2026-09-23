@@ -1,105 +1,93 @@
-from django.shortcuts import render, redirect
 from django.urls import reverse_lazy
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
 
-import googlemaps
-from datetime import datetime, date
+from .models import AuthorisedLocation
+from .geocoding import ADDRESS_FIELDS, GeocodingError, geocode_location
+from .permissions import can_authenticate_users, can_approve_locations
 from .forms import NewAuthorisedLocationForm
 from .models import AuthorisedLocation
 
 
+def _process_location_form(request, location_form):
+    """Validate, geocode if needed, and save. Returns True on success."""
+    if not location_form.is_valid():
+        return False
+
+    location = location_form.save(commit=False)
+
+    if not location.user_specific:
+        location.user = None
+    elif location.user is None:
+        location.user = request.user
+
+    address_changed = bool(set(ADDRESS_FIELDS) & set(location_form.changed_data))
+    if address_changed or not location.coordinates:
+        try:
+            location.coordinates = geocode_location(location)
+        except GeocodingError as exc:
+            location_form.add_error(None, str(exc))
+            return False
+
+    location.save()
+    return True
+
 
 @login_required(login_url="login")
 def new_authorised_location(request):
+    location_form = NewAuthorisedLocationForm(request.POST or None)
 
-    user = request.user
+    if request.method == "POST" and _process_location_form(request, location_form):
+        return redirect("authorised_location_list")
 
-    location_form = NewAuthorisedLocationForm()
-
-    if request.method == "POST":
-        location_form = NewAuthorisedLocationForm(request.POST)
-
-        if location_form.is_valid():
-            location_form = location_form.save(commit=False)
-
-            if location_form.user_specific == True:
-                location_form.user = user
-
-            gmaps = googlemaps.Client(key="")
-
-            address = (
-                location_form.name
-                + location_form.address_line_1
-                + location_form.address_line_2
-                + location_form.town_city
-                + location_form.county
-                + location_form.postcode
-                + location_form.country
-            )
-            geocode_results = gmaps.geocode(address)
-            lat = geocode_results[0]["geometry"]["location"]["lat"]
-            long = geocode_results[0]["geometry"]["location"]["lng"]
-            location_form.coordinates = str((lat, long))
-
-            location_form.save()
-
-
-        else:
-            print("Form is not valid")
-            print(location_form.errors)
-            print(location_form.non_field_errors())
-
-
-    context = {"location_form": location_form}
-    return render(request, "", context)
+    return render(request, "", {"location_form": location_form})
 
 
 @login_required(login_url="login")
 def edit_authorised_location(request, pk):
+    location = get_object_or_404(AuthorisedLocation, pk=pk)
+    location_form = NewAuthorisedLocationForm(request.POST or None, instance=location)
 
-    location_form = NewAuthorisedLocationForm()
+    if request.method == "POST" and _process_location_form(request, location_form):
+        return redirect("authorised_location_list")
+
+    return render(request, "", {"location_form": location_form})
+
+
+@login_required(login_url="login")
+def approve_authorised_location(request, pk):
+
+    if request.user.authorised_to_approve_authorised_locations == False:
+        messages.error(request, 'Unauthorised to approve authorised locations.')
+        return redirect('')
+
+
+    pending_location = AuthorisedLocation.objects.get(pk=pk)
 
     if request.method == "POST":
-        location_form = NewAuthorisedLocationForm(request.POST)
 
-        if location_form.is_valid():
-            location_form = location_form.save(commit=False)
+        pending_location.approved_by_manager = True
+        pending_location.approving_manager = request.user
 
-            if location_form.user_specific == True:
-                location_form.user = request.user
+        pending_location.save()
 
-            gmaps = googlemaps.Client(key="")
 
-            address = (
-                location_form.name
-                + location_form.address_line_1
-                + location_form.address_line_2
-                + location_form.town_city
-                + location_form.county
-                + location_form.postcode
-                + location_form.country
-            )
-            geocode_results = gmaps.geocode(address)
-            lat = geocode_results[0]["geometry"]["location"]["lat"]
-            long = geocode_results[0]["geometry"]["location"]["lng"]
-            location_form.coordinates = str((lat, long))
+        return redirect(reverse_lazy("approved_locations_pending_authorisation_list"))
 
-            location_form.save()
 
-            return redirect(reverse_lazy("authorised_location_list"))
-
-        else:
-            print("Form is not valid")
-            print(location_form.errors)
-            print(location_form.non_field_errors())
-
-    context = {"location_form": location_form}
+    context = {"location": pending_location}
     return render(request, "", context)
 
 
 @login_required(login_url="login")
 def authorise_pending_user(request, pk):
+
+    if request.user.authorised_to_authenticate_users == False:
+        messages.error(request, 'Unauthorised to authenticate users.')
+        return redirect('')
+
 
     pending_user = User.objects.get(pk=pk)
 

@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 
 SESSION_AUTHORISATION_CHOICES = (
     ("Granted", "Granted"),
+    ("Pending", "Pending"),
     ("Logged Out", "Logged Out"),
 )
 
@@ -18,7 +19,7 @@ class Profile(models.Model):
     mfa_enabled = models.BooleanField(default=False)
     mfa_secret = models.CharField(max_length=128, blank=True, null=True)
     mfa_token_expires = models.DateTimeField(blank=True, null=True)
-
+    mfa_attempts = models.PositiveSmallIntegerField(default=0)
 
     current_session_authorisation = models.CharField(
         max_length=25,
@@ -26,6 +27,10 @@ class Profile(models.Model):
         default="Pending",
         verbose_name="Current Session Authorisation",
     )
+
+    login_approval_requested_at = models.DateTimeField(blank=True, null=True)
+    login_approved_until = models.DateTimeField(blank=True, null=True)
+
     is_authorised = models.BooleanField(
         default=False, verbose_name="Is Authorised to Use System"
     )
@@ -48,6 +53,10 @@ class Profile(models.Model):
 
     authorised_to_authenticate_users = models.BooleanField(
         default=False, verbose_name="Authorised to Authenticate Users"
+    )
+
+    authorised_to_approve_authorised_locations = models.BooleanField(
+        default=False, verbose_name="Authorised to Authorise Approved Locations"
     )
 
 

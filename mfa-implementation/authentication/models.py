@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
-from apps.user_profile.models import *
+from .user_profile.models import *
 
 
 class AuthorisedLocation(models.Model):
@@ -40,6 +40,7 @@ class AuthorisedLocation(models.Model):
 
 
     radius = models.DecimalField(
+        max_digits=5,
         decimal_places=2,
         default=0.00,
         null=False,
@@ -61,4 +62,6 @@ class AuthorisedLocation(models.Model):
     approved_by_manager = models.BooleanField(
         default=False, verbose_name="Approved By Manager"
     )
-
+    approving_manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True
+    )

@@ -7,8 +7,7 @@ sys.path.append("..")
 
 urlpatterns = [
     path("login", login, name="login",),
-    path("send_mfa_token", logout, name="logout",),
-    path("mfa_verify", logout, name="logout",),
+    path("mfa_verify", mfa_verify, name="mfa_verify",),
     path("logout", logout, name="logout",),
 ]
 
