@@ -1,8 +1,8 @@
 # Context-Aware MFA & Access Control
 
-A Django authentication layer that decides how far to trust a login based on *context*, not just credentials. After the password check, a login is evaluated against two contextual policies — **where** the user is and **when** they are logging in — and then passes through an email one-time-token (MFA) step. Logins that fail the contextual checks are not simply rejected: they are escalated to a manager for a human decision, and an approval unlocks exactly one follow-up login, for a limited window.
+A Django authentication layer that decides how far to trust a login based on *context*, not just credentials. After the password check, a login is evaluated against two contextual policies: **where** the user is and **when** they are logging in, and then passes through an email one-time-token (MFA) step. Logins that fail the contextual checks are not simply rejected: they are escalated to a manager for a human decision, and an approval unlocks exactly one follow-up login, for a limited window.
 
-> **About this repository.** This is a reconstructed, representative implementation of an access-control subsystem originally built for a production transport management system. Proprietary code, data and business rules are not included. It contains the authentication domain logic only (models, views, forms, helpers). Project settings, templates and migrations are omitted, so template paths and redirect targets in the views are placeholders. It's designed to be dropped into an existing Django project and adapted — see **Integration points** below for what that involves.
+> **About this repository.** This is a reconstructed, representative implementation of an access-control subsystem originally built for a production transport management system. Proprietary code, data and business rules are not included. It contains the authentication domain logic only (models, views, forms, helpers). Project settings, templates and migrations are omitted, so template paths and redirect targets in the views are placeholders. It's designed to be dropped into an existing Django project and adapted to fit smoothly, see **Integration points** below for what that involves.
 
 ---
 
@@ -34,7 +34,7 @@ flowchart TD
     F -- no --> P{"Standing approval?"}
     P -- yes --> L
     P -- no --> N["Record request, email authorisers"]
-    N --> M["Manager approval — unlocks next login, 30-minute window"]
+    N --> M["Manager approval: unlocks next login, 30-minute window"]
     M --> P
 ```
 
