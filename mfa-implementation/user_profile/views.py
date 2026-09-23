@@ -10,10 +10,9 @@ from django.conf import settings
 from django.utils import timezone
 from django.contrib.auth import authenticate
 from django.db.models import Q
-import random
 from datetime import timedelta
 
-from .authentication.models import AuthorisedLocation
+from apps.authentication.models import AuthorisedLocation
 
 from .models import *
 from .utils import *

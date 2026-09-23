@@ -4,11 +4,12 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 
+from .permissions import can_authenticate_users, can_approve_locations
+
 from .models import AuthorisedLocation
 from .geocoding import ADDRESS_FIELDS, GeocodingError, geocode_location
 from .permissions import can_authenticate_users, can_approve_locations
 from .forms import NewAuthorisedLocationForm
-from .models import AuthorisedLocation
 
 
 def _process_location_form(request, location_form):
@@ -59,23 +60,18 @@ def edit_authorised_location(request, pk):
 @login_required(login_url="login")
 def approve_authorised_location(request, pk):
 
-    if request.user.authorised_to_approve_authorised_locations == False:
+    if not can_approve_locations(request.user):
         messages.error(request, 'Unauthorised to approve authorised locations.')
         return redirect('')
 
-
-    pending_location = AuthorisedLocation.objects.get(pk=pk)
+    pending_location = get_object_or_404(AuthorisedLocation, pk=pk)
 
     if request.method == "POST":
-
         pending_location.approved_by_manager = True
         pending_location.approving_manager = request.user
-
-        pending_location.save()
-
+        pending_location.save(update_fields=["approved_by_manager", "approving_manager"])
 
         return redirect(reverse_lazy("approved_locations_pending_authorisation_list"))
-
 
     context = {"location": pending_location}
     return render(request, "", context)
@@ -84,20 +80,15 @@ def approve_authorised_location(request, pk):
 @login_required(login_url="login")
 def authorise_pending_user(request, pk):
 
-    if request.user.authorised_to_authenticate_users == False:
+    if not can_authenticate_users(request.user):
         messages.error(request, 'Unauthorised to authenticate users.')
         return redirect('')
 
-
-    pending_user = User.objects.get(pk=pk)
+    pending_user = get_object_or_404(User, pk=pk)
 
     if request.method == "POST":
-
-        pending_user.is_authorised = True
-
-
+        grant_login_approval(pending_user.profile)
         return redirect(reverse_lazy("users_pending_authentication_list"))
-
 
     context = {"item": pending_user}
     return render(request, "", context)

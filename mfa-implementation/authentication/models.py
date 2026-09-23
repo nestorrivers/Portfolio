@@ -1,7 +1,6 @@
 from django.db import models
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
-from .user_profile.models import *
 
 
 class AuthorisedLocation(models.Model):
@@ -55,13 +54,15 @@ class AuthorisedLocation(models.Model):
 
 
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True,
+        related_name="authorised_locations",
     )
-
 
     approved_by_manager = models.BooleanField(
         default=False, verbose_name="Approved By Manager"
     )
+
     approving_manager = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True,
+        related_name="approved_locations",
     )

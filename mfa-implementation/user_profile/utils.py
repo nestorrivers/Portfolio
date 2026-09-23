@@ -72,23 +72,6 @@ def authorised_location_haversine(authorised_location, user_location):
     return haversine(stored, reported, unit=Unit.MILES)
 
 
-def authorised_location_haversine(authorised_location, user_location):
-    authorised_location = authorised_location.coordinates.split(",")
-    authorised_location_lat_long = (
-        float(authorised_location[0]),
-        float(authorised_location[1]),
-    )
-
-    user_location = user_location.split(",")
-
-    user_location_lat_long = (float(user_location[0]), float(user_location[1]))
-
-    distance = haversine(
-        authorised_location_lat_long, user_location_lat_long, unit=Unit.MILES
-    )
-    return distance
-
-
 def send_user_authorisation_request(request, user, reason):
     recipient_list = []
 
