@@ -47,7 +47,7 @@ authentication/          Location policy management and approval workflow
 ├── models.py            AuthorisedLocation
 ├── forms.py             NewAuthorisedLocationForm (radius validated 0–5 miles)
 ├── geocoding.py          Address-to-coordinates lookup (Google Maps), isolated from the view
-├── permissions.py        can_authenticate_users / can_approve_locations — integration seam
+├── permissions.py        can_authenticate_users / can_approve_locations: integration seam
 ├── views.py             Create/edit locations (geocoded on save), approve locations, authorise pending users
 ├── tables.py            List views: authorised locations, users pending authentication
 └── urls.py
@@ -61,7 +61,7 @@ user_profile/            Identity, session tracking and the login pipeline
 
 ## Data model
 
-**`Profile`** — one-to-one extension of Django's `User`. Holds the per-user security settings:
+**`Profile`**: one-to-one extension of Django's `User`. Holds the per-user security settings:
 
 | Field | Purpose |
 |---|---|
@@ -75,9 +75,9 @@ user_profile/            Identity, session tracking and the login pipeline
 | `login_approval_requested_at`, `login_approved_until` | State for a pending or granted manager approval |
 | `password_last_changed` | Timestamp for password-age policies |
 
-**`LoginSession`** — an audit record per login: created/closed timestamps, `Active`/`Closed` status, submitted coordinates and client IP.
+**`LoginSession`**: an audit record per login: created/closed timestamps, `Active`/`Closed` status, submitted coordinates and client IP.
 
-**`AuthorisedLocation`** — a named place with address fields, geocoded `coordinates` (`"lat,lng"`), a `radius` in miles (0–5), a `user_specific` flag with an optional `user` foreign key, and an `approved_by_manager` flag. Only approved locations count toward the geofence.
+**`AuthorisedLocation`**: a named place with address fields, geocoded `coordinates` (`"lat,lng"`), a `radius` in miles (0–5), a `user_specific` flag with an optional `user` foreign key, and an `approved_by_manager` flag. Only approved locations count toward the geofence.
 
 ## Policy details
 
@@ -94,7 +94,7 @@ user_profile/            Identity, session tracking and the login pipeline
 ## Design decisions and trade-offs
 
 - **Escalate rather than deny.** A failed contextual check goes to a human instead of locking the user out, so legitimate exceptions (covering a shift, working from a new site) don't need an administrator to edit their profile first.
-- **Approval is single-use and time-boxed.** A grant unlocks the next login attempt only, for a limited window, rather than standing indefinitely — an approval for one exception shouldn't quietly authorise every future login too.
+- **Approval is single-use and time-boxed.** A grant unlocks the next login attempt only, for a limited window, rather than standing indefinitely: an approval for one exception shouldn't quietly authorise every future login too.
 - **Client-reported location is a signal, not proof.** Browser geolocation can be spoofed. Recording the IP alongside the coordinates gives reviewers a second data point rather than relying on one.
 - **Geocode once, compare offline.** Storing coordinates on the location avoids per-login API calls, cost and an availability dependency on Google.
 - **Email tokens over an authenticator app.** No enrolment step, at the cost of the mailbox becoming the trust boundary.
@@ -105,8 +105,8 @@ user_profile/            Identity, session tracking and the login pipeline
 
 This module is meant to be dropped into a host project and adapted to its own permissions system, not to carry its own. A few seams are deliberately thin:
 
-- **`authentication/permissions.py`** — `can_authenticate_users(user)` and `can_approve_locations(user)` are the only place this app decides who may act on approval requests. They currently read flags on `Profile`; a host project can rewrite them to check its own groups or permission classes (e.g. `user.has_perm(...)`) without touching the views that call them. `@login_required` is applied independently of these, so authentication is never optional even where authorisation is left to the host.
-- **`AuthorisedLocation.approved_by_manager`** and the login-approval flow are core to what this module does, not integration points — they're what makes the geofence and the escalation path meaningful, and are enforced regardless of how a host wires up permissions.
+- **`authentication/permissions.py`**: `can_authenticate_users(user)` and `can_approve_locations(user)` are the only place this app decides who may act on approval requests. They currently read flags on `Profile`; a host project can rewrite them to check its own groups or permission classes (e.g. `user.has_perm(...)`) without touching the views that call them. `@login_required` is applied independently of these, so authentication is never optional even where authorisation is left to the host.
+- **`AuthorisedLocation.approved_by_manager`** and the login-approval flow are core to what this module does, not integration points: they're what makes the geofence and the escalation path meaningful, and are enforced regardless of how a host wires up permissions.
 - **Rate limiting** beyond the 5-attempt MFA cap (e.g. per-IP or per-account throttling on the login view itself) is left to the host, typically via middleware or a package like `django-axes`.
 - **`Profile` creation** for each new `User` (e.g. a `post_save` signal) isn't included, since hosts usually already have their own user-provisioning flow to hook into.
 
@@ -117,8 +117,8 @@ pip install django googlemaps haversine
 ```
 
 - Django email settings (`EMAIL_HOST`, `EMAIL_HOST_USER`, etc.); `EMAIL_HOST_USER` is used as the MFA sender.
-- `GOOGLE_MAPS_API_KEY`, read from settings/environment — used only when saving or editing an `AuthorisedLocation`.
-- `SECRET_KEY` — used as a pepper when hashing MFA tokens (standard Django setting, not extra configuration).
-- `LOGIN_APPROVAL_WINDOW_MINUTES` (optional, default `30`) — how long a granted approval remains usable.
+- `GOOGLE_MAPS_API_KEY`, read from settings/environment: used only when saving or editing an `AuthorisedLocation`.
+- `SECRET_KEY`: used as a pepper when hashing MFA tokens (standard Django setting, not extra configuration).
+- `LOGIN_APPROVAL_WINDOW_MINUTES` (optional, default `30`): how long a granted approval remains usable.
 - A login template that includes the hidden `user_location` input and populates it via `navigator.geolocation`.
 - A mechanism to create a `Profile` for each new `User` (for example a `post_save` signal); none is included here.
