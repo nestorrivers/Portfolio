@@ -1,542 +1,150 @@
-# Pataverse
+# AR Social Media Project
 
-**Location-based augmented reality built with Django, AR.js and A-Frame.**
+**Location-based augmented reality in the browser, built with Django and AR.js.**
 
-Pataverse is a personal project exploring how browser-based augmented reality can be used to create, place and discover digital content within physical environments.
+This repo is an extract from an augmented reality socialmedia project, which aims to let people leave digital content (text on virtual signs, images) at real-world coordinates, and lets other people find it by walking past with a phone. There is no app to install and no AR tooling to learn: content is created through an ordinary Django web app, and discovered through a mobile browser.
 
-The platform allows users to create location-based content without requiring specialist AR software, a native mobile application or their own AR development environment. Content can consist of text, images or 3D assets and is associated with a real-world geographic location.
-
-Users can then open the AR experience through a mobile browser and discover digital content positioned around their physical surroundings.
-
-The project combines conventional web application development with **geolocation, augmented reality, user-generated content, access control and location-aware safety mechanisms**.
-
----
-
-## Concept
-
-Pataverse is built around a simple interaction model:
+> **About this repository.** This is code extracted from a larger work-in-progress project. It is a set of Django apps meant to be read, or dropped into a host project and adapted, and not a runnable site. There is no `settings.py`, root `urls.py`, `manage.py` or custom user model here (see [Integrating](#integrating-into-a-host-project) for what the host provides). A [case study PDF](AR%20Project%20Case%20Study.pdf) covers the product thinking.
 
 **Create → Place → Discover → Experience**
 
-### Create
+---
 
-Users create digital content through the conventional Django application.
+## The engineering problem
 
-This can include:
+The interesting part isn't putting a 3D object on a camera feed. It's that a location-based platform has to combine things that don't usually meet:
 
-* Text-based messages
-* Images
-* 3D content
-* Location-based experiences
+- **Geospatial queries**: return only the content near a user, not the whole database.
+- **Untrusted location**: the browser reports where it is, and the server can't take that on faith.
+- **Physical-world safety**: content can send people to places. Roads, rail lines, private property and construction sites shouldn't be valid places to leave a message.
+- **User-generated content**: everything a normal social platform has to moderate, plus *where* it was placed.
 
-The creation process deliberately hides the underlying AR implementation from the user.
-
-### Place
-
-Each piece of content is associated with a real-world position using latitude and longitude.
-
-This turns a conventional database record into something spatial: the content is not simply stored in the application, but associated with a specific place in the physical world.
-
-### Discover
-
-When a user accesses the AR interface, their current location can be used to identify nearby content.
-
-Rather than downloading the entire collection of artwork, the backend can return only content relevant to the user's current position and discovery radius.
-
-### Experience
-
-The browser uses **AR.js and A-Frame** to render the returned content within the user's physical surroundings.
-
-The result is a system where the physical environment becomes part of the application's interface.
+The project is mostly about how those concerns are kept separate, and where they meet.
 
 ---
 
-# Architecture
+## What's implemented
+
+| App | Responsibility |
+| --- | --- |
+| `objects` | `ARTextObject` and `ARImageObject` models with geometry, material and interaction settings; reusable object templates; create/edit/delete/like/hide views; automatic moderation on save |
+| `channels` | Themed collections of objects (public, verified, seasonal, private) with optional start/end dates; per-creator approval to post text, image or audio; the location-discovery endpoint |
+| `moderation` | `RestrictedArea` polygons; user reports; moderator actions (no action, warn, remove content, temporary ban) with email notifications |
+| `social` | Friend requests, friendships with independent per-side status, blocking |
+| `notifications` | In-app notifications, with optional email |
+
+Objects carry a visibility state (`Public`, `Draft`, `Private`, `Suspended`), and moderation moves content between states rather than deleting it.
+
+---
+
+## How discovery works
 
 ```text
-┌─────────────────────────────┐
-│       Mobile Browser        │
-│                             │
-│  Camera + Geolocation       │
-└──────────────┬──────────────┘
-               │
-               ▼
-┌─────────────────────────────┐
-│       AR.js / A-Frame       │
-│                             │
-│   AR tracking + rendering   │
-└──────────────┬──────────────┘
-               │
-               ▼
-┌─────────────────────────────┐
-│      Django Application     │
-│                             │
-│ Auth · Permissions · Logic  │
-│ Content · Moderation        │
-└──────────────┬──────────────┘
-               │
-               ▼
-┌─────────────────────────────┐
-│         PostgreSQL          │
-│                             │
-│ Users · Artwork · Locations │
-│ Permissions · Restrictions  │
-└─────────────────────────────┘
+Browser geolocation
+        │  GET /api/channels/objects/?latitude=…&longitude=…
+        ▼
+Login required, coordinates parsed as floats (400 on failure)
+        ▼
+Bounding box of ±50 m around the user   ← cheap, uses the (lat, lon) index
+        ▼
+Haversine distance filter (≤ 50 m)      ← exact, on the few candidates
+        ▼
+Return only the fields the AR client needs, bump view counts
+        ▼
+AR.js / A-Frame creates entities at their GPS positions
 ```
 
-The architecture deliberately separates responsibilities.
+Two decisions here are worth explaining:
 
-**Django** is responsible for application logic, authentication, permissions, content management, and validation, and provides structured data to the browser and controls what content is returned.
+- **Bounding box first, then Haversine.** A raw distance calculation over every row doesn't scale, and a box query can use the composite `(latitude, longitude)` index. The box is computed in metres and converted to degrees, with longitude degrees scaled by `cos(latitude)` because they shrink toward the poles. The box over-selects slightly (its corners are further than 50 m), so Haversine then trims the candidates exactly.
+- **A minimal payload.** The endpoint uses `.only(...)` and returns just what's needed to render: text, shape, dimensions, rotation and coordinates. The client never sees the wider data model.
 
-**AR.js / A-Frame** handles the client-side AR experience and rendering.
-
-**PostgreSQL** stores users, content, relationships and geographic information.
-
----
-
-# Geospatial Architecture
-
-Location is a fundamental part of Pataverse rather than simply metadata attached to an artwork.
-
-Artwork is currently represented using latitude and longitude fields:
-
-```python
-class Artwork(models.Model):
-    latitude = models.FloatField()
-    longitude = models.FloatField()
-```
-
-When content is requested, the user's location can be passed to the backend and used to determine which content is relevant.
-
-The important architectural principle is that **location received from the client is treated as untrusted input**.
-
-The server remains responsible for deciding whether a location is valid and whether content is allowed to exist there.
+View counts are incremented with a single `F("view_count") + 1` bulk update, which avoids read-modify-write races between simultaneous viewers.
 
 ---
 
-## Location Discovery
+## Restricted areas
 
-The discovery process can be thought of as:
+Users can place content anywhere, and not everywhere should allow it. A `RestrictedArea` is a named polygon (a JSON list of `[lat, lon]` points) with a type (`safety`, `privacy`, `legal`, `sensitive`) and an `active` flag, so moderators can define irregular shapes such as a rail corridor or a school grounds and not just rectangles.
 
-```text
-User's location
-      ↓
-Validate coordinates
-      ↓
-Determine discovery radius
-      ↓
-Find relevant artwork
-      ↓
-Return structured response
-      ↓
-Create AR entities
-      ↓
-Render in browser
-```
+`contains_point()` implements the **ray-casting** point-in-polygon test: cast a ray from the point, count boundary crossings, and an odd count means inside. It uses plain coordinate arithmetic, which is accurate enough for boundaries a few hundred metres across.
 
-This avoids sending the complete artwork collection to the client.
+On every create or edit, `ARTextObject.moderate_text()` checks the object's coordinates against all active areas. **A match doesn't reject the save.** The object is set to `Suspended`, the reason is recorded in `system_notes`, and the creator gets a notification explaining why. This is a deliberate split between:
 
-It also means that the AR layer does not need to understand the application's complete data model. It receives the content it needs and concentrates on presenting it.
+- **Geospatial enforcement**: automatic, based on where the content is.
+- **Content moderation**: human judgement about what the content means, via reports and moderator actions.
+
+Suspending rather than refusing means creators can see and fix the problem and don't just lose their work. The same pass runs text through a word filter.
 
 ---
 
-# Restricted Areas
+## Design principles
 
-One of the interesting consequences of allowing users to place content anywhere is that **not every geographic location should necessarily be available for content placement**.
-
-Pataverse therefore includes the concept of restricted areas.
-
-A restricted area can be represented as a polygon containing a series of latitude/longitude points:
-
-```python
-class RestrictedArea(models.Model):
-    name = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
-
-    boundary = models.JSONField()
-
-    restriction_type = models.CharField(
-        max_length=20,
-        choices=(
-            ("safety", "Safety"),
-            ("privacy", "Privacy"),
-            ("legal", "Legal"),
-            ("sensitive", "Sensitive Location"),
-        )
-    )
-
-    active = models.BooleanField(default=True)
-```
-
-For example:
-
-```json
-[
-    [52.0001, -1.5002],
-    [52.0034, -1.4978],
-    [52.0041, -1.4921],
-    [52.0017, -1.4895],
-    [51.9998, -1.4940]
-]
-```
-
-This allows restricted areas to have irregular boundaries rather than being limited to simple rectangular boxes.
-
-A point-in-polygon calculation can then determine whether an artwork falls inside one of these areas.
-
-```python
-def contains_point(self, latitude, longitude):
-    inside = False
-    j = len(self.boundary) - 1
-
-    for i in range(len(self.boundary)):
-        lat_i, lon_i = self.boundary[i]
-        lat_j, lon_j = self.boundary[j]
-
-        if (
-            (lat_i > latitude) != (lat_j > latitude)
-            and longitude <
-            (lon_j - lon_i)
-            * (latitude - lat_i)
-            / (lat_j - lat_i)
-            + lon_i
-        ):
-            inside = not inside
-
-        j = i
-
-    return inside
-```
-
-The artwork placement process can then reject locations that fall inside an active restricted area.
-
-This creates an important distinction between **moderation** and **automated enforcement**.
-
-Moderators or administrators can define and manage restricted areas, but the application automatically enforces those restrictions when content is created or moved.
+- **The server decides.** Ownership checks (edit and delete are creator-only) happen server-side, and the client never decides where content may exist.
+- **The AR layer only renders.** Business rules stay in Django, and the browser gets pre-filtered, render-ready data.
+- **Location is a first-class concern.** It affects discovery, moderation, safety and privacy, and isn't just a pair of columns.
+- **Moderation is reversible.** Content moves between visibility states, and the reason is written to an audit trail (`system_notes`) on the object.
 
 ---
 
-# Interesting Engineering Problems
+## Privacy and safety considerations
 
-Pataverse became substantially more interesting once the different systems had to work together.
+Precise coordinates can reveal homes, workplaces and routines, and content can influence where people physically go. The design responds with:
 
-The individual technologies are relatively straightforward. The difficult part is managing the boundaries between them.
+- server-side ownership checks on object edit, delete and detail views;
+- restricted areas for locations where content shouldn't be placed;
+- reporting, blocking, and moderator actions up to temporary bans;
+- a word filter on titles, descriptions and content;
+- a discovery radius small enough (50 m) that the endpoint never returns a wide area of the map.
 
-## 1. Geospatial queries
-
-The application needs to determine which content is relevant to a user's physical location.
-
-Artwork is stored with geographic coordinates and the backend can use the user's coordinates and a discovery radius to determine what should be returned.
-
-This creates a direct relationship between:
-
-**physical location → database query → AR scene**
+The [Known limitations](#known-limitations) section lists where this is still unfinished. Some of it matters for a real deployment.
 
 ---
 
-## 2. Browser-based AR
+## Integrating into a host project
 
-Rather than requiring users to install a native application, Pataverse uses browser-based AR.
+The apps assume the host provides:
 
-**AR.js** provides the AR functionality while **A-Frame** provides a declarative framework for constructing and rendering the scene.
+- **Settings and URLs**: `INSTALLED_APPS` for the five apps, the URL includes, `SITE_NAME`, `SITE_DOMAIN`, `DEFAULT_FROM_EMAIL` and email configuration.
+- **A custom user model** at `apps.users.CustomUser` (referenced by the channels app) with `user_type` (`'Admin'` / `'User'`), `friends`, `receive_email_notifications`, `account_status` and `ban_expiration`.
+- **PostgreSQL**: the models use `ArrayField` (tags, system notes).
+- **Python dependencies**: Django, `wordfilter`, and a Postgres driver.
+- **Front end**: the AR viewer template loads A-Frame 1.5.0 and AR.js (location-based `gps-camera` / `gps-entity-place`) from CDNs. A-Frame and LocAR builds are also vendored under `static/js/`.
 
-This means the browser has to handle:
-
-* Camera access
-* Location access
-* AR tracking
-* Rendering
-* User interaction
-* Network communication
-
-while also remaining usable on mobile hardware.
-
-The benefit is a significantly lower barrier to entry: the user can access the experience through a browser rather than installing specialist software.
+Moderator roles are checked with `user_type` in views, so hosts with their own permission model will want to swap those checks for theirs.
 
 ---
 
-## 3. Untrusted location data
+## Known limitations
 
-A browser can provide coordinates, but the server cannot assume that those coordinates are trustworthy.
+This is extracted work in progress, and these are the gaps I know about. Roughly in order of importance:
 
-A malicious client could submit:
-
-* Invalid latitude values
-* Invalid longitude values
-* Artificial coordinates
-* Coordinates inside a restricted area
-* Coordinates intended to manipulate discovery
-
-Consequently, important location decisions happen server-side.
-
-For example:
-
-```text
-Client submits coordinates
-        ↓
-Validate coordinate ranges
-        ↓
-Check permissions
-        ↓
-Check restricted areas
-        ↓
-Save / reject
-```
-
-The client therefore cannot simply decide where an artwork is allowed to exist.
+1. **Discovery doesn't filter by visibility.** `get_channel_objects` selects by location only, so `Draft`, `Private` and `Suspended` objects can be returned to any logged-in user within range. It should filter to `Public` (and friends' content for friends). `get_friends_objects` returns all of a friend's objects regardless of visibility or location.
+2. **The viewer sends fixed test coordinates.** `fetchARObjects` in `channel-viewer-ar.html` uses hard-coded latitude/longitude from development and ignores the device's real position. It needs to pass the `lat` and `lon` it already receives.
+3. **Coordinates are only checked for being parseable.** There's no range validation (±90 / ±180), and the server can't verify that a client is actually where it says it is. Spoofed location remains possible.
+4. **Debug logging includes usernames and coordinates.** Discovery uses `print` statements, which is at odds with the privacy goals above.
+5. **Moderator "remove" doesn't hide content.** `remove_object` sets `is_active = False`, but `ARTextObject` has no such field. It should set `visibility = 'Suspended'`. The email built in `moderate_text` for the creator is also constructed but never sent.
+6. **The edit view is wired incorrectly.** It calls `form.save_and_moderate()` (defined on the model, not the form) and redirects to a URL name that doesn't exist.
+7. **Uploads aren't implemented in this extract.** The models have no file fields, so upload validation (size and type limits) is still to do. Image and 3D content use texture URLs and templates for now. 3D model support is stubbed out in comments.
+8. **The restricted-area check is a simple scan.** Every save tests every active polygon. That's fine at small scale, and the natural next step is PostGIS with a spatial index (which would also replace the bounding box and Haversine code).
+9. **There are no automated tests yet** for the geospatial code. Ray casting and the bounding-box maths are the first candidates.
 
 ---
 
-## 4. Dynamic content discovery
+## Technology
 
-A city could potentially contain a very large number of artworks.
-
-Sending all of them to every user would be inefficient and would make the AR client responsible for filtering content that it does not need.
-
-Instead:
-
-```text
-Current user location
-        ↓
-Geospatial filtering
-        ↓
-Nearby artwork
-        ↓
-AR client
-```
-
-The backend acts as the first layer of filtering, reducing both network traffic and client-side processing.
+| Layer | Technology |
+| --- | --- |
+| Backend | Python, Django |
+| Database | PostgreSQL (`ArrayField`, composite index on latitude/longitude) |
+| Front end | HTML, JavaScript, Django templates |
+| AR | AR.js location-based tracking on A-Frame 1.5.0 |
+| Location | Browser Geolocation API |
+| Spatial logic | Bounding-box prefilter, Haversine distance, ray-casting point-in-polygon |
+| Moderation | `wordfilter`, user reports, restricted areas, moderator actions |
 
 ---
 
-## 5. User-generated 3D content
+## What this project demonstrates
 
-Allowing users to upload their own assets creates a different class of problems from ordinary text-based content.
-
-Uploaded files are untrusted and can be:
-
-* Excessively large
-* An unsupported format
-* Malformed
-* Unexpectedly complex
-* Unsuitable for client-side rendering
-
-The application therefore needs to validate uploaded content before it reaches the AR layer.
-
-File size restrictions and permitted file types provide an initial control layer, while keeping uploaded content separate from executable application code reduces the risk associated with user-controlled files.
-
----
-
-## 6. Physical-world constraints
-
-Pataverse differs from a conventional social platform because its content can influence where people physically go.
-
-A poorly designed system could encourage users towards:
-
-* Roads
-* Railway infrastructure
-* Construction areas
-* Private property
-* Poorly lit locations
-* Other sensitive or hazardous areas
-
-This makes geographic restrictions more than a conventional moderation feature.
-
-The application can use restricted areas and content controls to prevent or limit placement in locations where the digital experience could create physical-world risks.
-
----
-
-# Security & Privacy
-
-Pataverse handles several categories of potentially sensitive information:
-
-* User accounts
-* Precise geographic coordinates
-* User-generated content
-* Uploaded files
-* Relationships between users
-* Private/friends-only content
-
-Security therefore has to exist across multiple layers.
-
-### Authentication and authorisation
-
-Django handles authentication and protected functionality.
-
-Ownership and visibility checks are performed server-side rather than trusting the client to decide which content a user can access or modify.
-
-### Input validation
-
-Client-provided data is treated as untrusted.
-
-This applies to:
-
-* Artwork IDs
-* Coordinates
-* Text
-* File uploads
-* Geolocation data
-* Visibility settings
-
-### Location privacy
-
-Precise geographic information can reveal sensitive places such as homes, workplaces or regularly visited locations.
-
-The architecture therefore favours data minimisation and avoids exposing location information unnecessarily.
-
-### Private content
-
-Pataverse supports public and private/friends-only content.
-
-Private content must be filtered at the application layer so that it cannot simply be discovered by manipulating an HTTP request.
-
-### Upload security
-
-User-provided files are validated for type and size before being stored and exposed to the client.
-
----
-
-# User-Generated Content
-
-The platform is designed around the idea that users can create the content that populates the physical environment.
-
-That introduces moderation challenges including:
-
-* Offensive content
-* Harassment
-* Spam
-* Copyright infringement
-* Inappropriate material
-* Defamatory content
-* Malicious links
-* Abusive placement of content
-
-Potential platform controls include:
-
-* User reporting
-* Blocking
-* Content removal
-* Copyright takedown processes
-* Content classification
-* Creation limits
-* Rate limiting
-* URL restrictions
-* Administrative moderation
-
-The important distinction is between **content moderation** and **geospatial enforcement**.
-
-Moderation deals with what content means and whether it should remain available.
-
-Geospatial enforcement determines whether content is allowed to exist at a particular location in the first place.
-
----
-
-# Public Experiences
-
-The location-based model allows Pataverse to support experiences beyond simply leaving messages at random locations.
-
-### Seasonal experiences
-
-Users could create Halloween walks or other seasonal trails, with content appearing at specific locations along a route.
-
-### Historical experiences
-
-Archival photographs, historical information and stories could be positioned alongside the locations they relate to.
-
-### Creative experiences
-
-Artists could create virtual public exhibitions, placing digital sculptures, paintings and installations around a city without requiring a physical gallery.
-
-This demonstrates the broader concept behind Pataverse: **the physical environment can become a canvas for user-generated digital experiences.**
-
----
-
-# Design Principles
-
-Several principles shaped the implementation.
-
-### Server-side authority
-
-The browser can request an action, but the Django application decides whether that action is permitted.
-
-### Minimal client responsibility
-
-The AR client concentrates on rendering and interaction rather than implementing application security or business rules.
-
-### Location as a first-class concern
-
-Geographic information affects discovery, permissions, safety and the user experience rather than being treated as ordinary metadata.
-
-### Progressive complexity
-
-The underlying system can support sophisticated spatial behaviour without exposing that complexity to users.
-
-### Browser-first accessibility
-
-Users should not need specialist software or a dedicated AR development environment to participate.
-
----
-
-# Technology
-
-| Layer                | Technology                                        |
-| -------------------- | ------------------------------------------------- |
-| Backend              | Django / Python                                   |
-| Database             | PostgreSQL                                        |
-| Frontend             | HTML / JavaScript                                 |
-| AR                   | AR.js / A-Frame                                   |
-| Location             | Browser Geolocation API                           |
-| Content              | User-generated text, images and 3D assets         |
-| Spatial restrictions | Coordinate polygons / point-in-polygon validation |
-
----
-
-# What This Project Demonstrates
-
-Pataverse was primarily an exploration of **systems engineering rather than AR for its own sake**.
-
-The project required several conventional web development concerns to interact with a spatial interface:
-
-```text
-Authentication
-      +
-Permissions
-      +
-User-generated content
-      +
-Geolocation
-      +
-Spatial validation
-      +
-AR rendering
-      +
-Privacy & safety
-      ↓
-Location-based digital experience
-```
-
-The interesting engineering problem is therefore not simply:
-
-> "How do I put a 3D object on a camera feed?"
-
-It is:
-
-> **How do I build a system where digital content can safely, securely and meaningfully exist within physical space?**
-
-Pataverse explores that question using a conventional Django architecture combined with browser-based augmented reality.
-
----
-
-## Project Status
-
-Pataverse is a personal project and an exploration of the architecture and engineering challenges involved in location-based AR.
-
-Some components are experimental or intentionally simplified, particularly the geospatial implementation. A production-scale deployment would likely introduce more sophisticated spatial indexing, asset processing, moderation infrastructure, observability and privacy controls.
-
-The project is therefore best understood as both a working application and an exploration of how a conventional web stack can be extended into a spatial computing environment.
-
----
-
-## Technology Summary
-
-**Django · Python · Django REST Framework · PostgreSQL · JavaScript · AR.js · A-Frame · Browser Geolocation · User-Generated Content · Geospatial Validation**
+Working across boundaries: authentication, user-generated content, spatial queries, safety policy and a browser-based AR client all have to agree with each other. The focus is on keeping those responsibilities separate (server-side authority, a thin AR client, moderation kept distinct from geospatial enforcement) and on being clear about which parts are finished and which aren't.

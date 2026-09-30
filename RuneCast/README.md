@@ -1,158 +1,142 @@
 # RuneCast
 
-**Deep Learning for Complex RuneScape Item Price Prediction**
+**Multivariate LSTM forecasting of a crafted item's price from its supply chain, using RuneScape Grand Exchange data.**
+
+RuneCast asks a simple question: does knowing the prices of an item's *inputs* help predict the price of the item itself? It takes a finished good (the default target is the **Glorious bar**), adds price histories for progressively deeper tiers of its supply chain, and trains an LSTM to predict the target's next-day price from the previous 30 days.
+
+> **Status.** The data pipeline, model, training loop, hyperparameter search and inference script are written, and a depth-5 model has been trained. **The evaluation is not done**: there is no baseline comparison and no reported error metrics yet. The [Evaluation](#evaluation) and [Known limitations](#known-limitations) sections say exactly what is missing and why, so you can judge the project on what it is now.
 
 ---
 
-## Overview
+## The idea: precursor depth
 
-RuneCast is an advanced machine learning project that predicts the prices of complex, craftable items in the RuneScape Grand Exchange. Unlike straightforward price trackers, RuneCast models the layered dependencies between crafted goods and their precursor materials using multivariate time series forecasting.
+Crafted items depend on inputs that have their own price dynamics. A model that only sees the target's own history can't see a shock upstream. RuneCast makes the supply chain an explicit, configurable input through a **depth** setting (`constants.py`):
 
-By combining real-time web scraping, deep neural networks (LSTM), and automated hyperparameter optimization, RuneCast provides accurate and interpretable forecasts to help players, traders, and developers better understand and anticipate in-game market trends.
+| Depth | Tier added | Items | Cumulative features |
+| --- | --- | --- | --- |
+| 1 | Target | Glorious bar | 1 |
+| 2 | Intermediate alloy bars | 3 | 4 |
+| 3 | Standard metal bars | 10 | 14 |
+| 4 | Stone spirits | 13 | 27 |
+| 5 | Raw ores | 13 | 40 |
 
----
+Each depth includes all shallower tiers. So the same code answers the research question directly: train at depth 1 (a univariate model) and at depth *n*, and compare.
 
-## Motivation
-
-The RuneScape economy is intricate and volatile. Many valuable items require multiple precursor components, each with their own price fluctuations influenced by player demand, supply chain changes, and game updates. Traditional forecasting approaches treating each item independently often fail to capture these dependencies.
-
-RuneCast tackles this challenge by:
-
-- Modeling precursor relationships explicitly through a configurable "depth" system  
-- Leveraging sequential models that handle multivariate input time series  
-- Integrating automated data collection with model training and evaluation  
-
-The result is a robust forecasting pipeline capable of providing insights on composite item prices that reflect their underlying market dynamics.
+The working hypothesis is that deeper inputs help when supply chains are tightly coupled, with diminishing returns as inputs get further from the finished good. **This is a hypothesis, not a result.**
 
 ---
 
-## Features
+## How it works
 
-- **Multivariate LSTM Model:** Predict prices using multiple precursor item price histories simultaneously  
-- **Dynamic Precursor Depth:** Configure how many tiers of precursor items are included in the model input  
-- **Automated Data Collection:** Scrape and cache historical price data from RuneScape APIs and third-party sources  
-- **Hyperparameter Optimization:** Use Optuna to tune model architecture and training parameters for best performance  
-- **Modular Design:** Clean, extensible codebase for data processing, modeling, prediction, and optimization  
-- **Command-Line Interface:** Easy-to-use scripts for training, predicting, and optimizing without complex setup  
+```text
+price_scraper.py   Weird Gloop GE history API → one CSV per item (cached, rate-limited)
+        ▼
+data_utils.py      Load items for the chosen depth → align on date → standardise
+                   → 30-day sliding windows: X (samples, 30, n_features), y (next-day target)
+        ▼
+train.py           PriceLSTM (LSTM → last timestep → linear) with MSE loss;
+                   best-validation checkpoint saved with its architecture metadata
+        ▼
+optimise.py        Optuna search over hidden size, layers, dropout, learning rate,
+                   batch size and optimiser
+        ▼
+predict.py         Pick a saved model → fetch the last 30 days live → scale with the
+                   saved scaler → predict → inverse-transform → up / down / stable
+```
 
----
+### Design decisions
 
-## Tech Stack
+- **Scaler saved next to the model.** `StandardScaler` is persisted per (item, depth) as `depthN_scaler.pkl`, so inference scales live data exactly as training did, and the prediction is inverse-transformed back to coins.
+- **Self-describing checkpoints.** Each `.pt` file stores `hidden_size`, `num_layers`, `input_size` and `dropout` alongside the weights, so `predict.py` can rebuild the architecture without the training code's settings.
+- **Depth as data, not code.** `get_items_by_depth()` is the single source of truth for which items feed a model, used by the scraper, loader and predictor alike. Changing the supply chain is a one-file change.
+- **Polite data collection.** The scraper caches each CSV, skips items already downloaded, and waits between requests, with an identifying User-Agent.
+- **Aligned on common dates.** Items are joined on date and rows with any missing price are dropped, so every feature is observed on every step.
 
-| Component        | Technology         |
-|------------------|--------------------|
-| Programming      | Python 3.10+       |
-| ML Framework     | PyTorch            |
-| Data Handling    | Pandas, NumPy      |
-| Hyperparameter Tuning | Optuna         |
-| Web Scraping     | Requests, BeautifulSoup |
-| Visualization    | Matplotlib, Seaborn|
+### The data
 
----
+Daily prices for 40 items from the [Weird Gloop](https://api.weirdgloop.org/) exchange history API, included in `data/ge_prices/`:
 
-## Project Structure
+| Depth | Features | Usable days | Date range |
+| --- | --- | --- | --- |
+| 1 to 4 | 1 to 27 | 2,479 | 2018-09-29 to 2025-07-30 |
+| 5 | 40 | 2,379 | 2019-01-07 to 2025-07-30 |
 
-runecast/
-│
-├── data/ # Raw and processed price data CSVs
-├── models/ # Trained model weights and scalers
-│
-├── train.py # Training pipeline script
-├── predict.py # Model loading and inference script
-├── optimise.py # Hyperparameter tuning pipeline
-├── price_scraper.py # Price history fetching and caching
-├── data_utils.py # Data loading and preprocessing utilities
-├── requirements.txt # Python dependencies
-└── README.md # Project documentation
-
+Depth 5 has fewer days because some ores have shorter histories. The final step of `predict.py` also reads the current spot price from the RuneScape Wiki's exchange page, to report the expected direction.
 
 ---
 
-## Getting Started
-
-### Prerequisites
-
-- Python 3.10 or higher  
-- PyTorch  
-- Required Python packages (see `requirements.txt`)
-
-### Installation
-
-Clone the repository:
+## Usage
 
 ```bash
-git clone https://github.com/raefr-io/runecast.git
-cd runecast
 pip install -r requirements.txt
-```
-#### Usage: 
 
-Download price history for items at desired precursor depth:
-```
-python price_scraper.py
+python price_scraper.py     # download price history (skips existing CSVs)
+python predict.py           # choose a saved model, fetch live data, print a forecast
+python optimise.py          # Optuna search (prompts for depth 1 to 5)
 ```
 
-Train a price prediction model:
-```
-python train.py
-```
-Run price prediction using a saved model:
-```
-python predict.py
-```
-Tune hyperparameters using Optuna:
-```
-python optimize.py
-```
+`predict.py` reports the model's next-day price, the current price, and a direction (`up` / `down` / `stable`, using a ±1% band). It's an experiment, not financial advice, and the results are not validated (below).
 
-## How It Works
+> `requirements.txt` is a full environment freeze saved as UTF-16, so `pip install -r` may need converting to UTF-8 first. `train.py` currently holds the model and training loop as importable code with no command-line entry point (see limitations).
 
-### Data Collection:
-Historical price data is scraped and cached from RuneScape Grand Exchange APIs or third-party sources.
+---
 
-### Preprocessing:
-Data is cleaned and formatted into multivariate time series based on configured precursor depth.
+## Evaluation
 
-### Model Training:
-A configurable LSTM model is trained on sequences of precursor prices to predict target item prices.
+**There are no results yet.** The intended design is:
 
-### Prediction:
-The trained model is loaded to generate short-term price forecasts based on live scraped data.
+- **Metric:** RMSE and MAE in coins on a held-out test period.
+- **Baselines, in increasing strength:**
+  1. **Persistence**: tomorrow's price equals today's. Daily prices are very autocorrelated, so this is the baseline any forecast must beat, and models trained on price *levels* often end up learning it.
+  2. **Univariate LSTM** (depth 1): the target's own history only.
+  3. **Multivariate LSTM** at depths 2 to 5.
+- **The comparison that matters:** each multivariate depth against the depth-1 model and against persistence, using the same split and seeds.
 
-### Optimisation:
-Optuna automates tuning of model hyperparameters to improve forecasting accuracy.
+| Model | Depth | Features | RMSE | MAE | vs. persistence |
+| --- | --- | --- | --- | --- | --- |
+| Persistence | – | – | *not run* | *not run* | – |
+| Univariate LSTM | 1 | 1 | *not run* | *not run* | *not run* |
+| Multivariate LSTM | 2 | 4 | *not run* | *not run* | *not run* |
+| Multivariate LSTM | 3 | 14 | *not run* | *not run* | *not run* |
+| Multivariate LSTM | 4 | 27 | *not run* | *not run* | *not run* |
+| Multivariate LSTM | 5 | 40 | *not run* | *not run* | *not run* |
 
+---
 
-## Results & Evaluation
+## Known limitations
 
-Models are evaluated against a univariate baseline (LSTM trained on target item price only) using RMSE and MAE on a held-out 20% test set. Results below are for the Glorious bar target item across precursor depth configurations.
+These are the gaps between what the project is for and what the code currently does. The first three would change any result, so they come first.
 
-| Model | Depth | Input Features | RMSE | MAE | vs. Baseline |
-|---|---|---|---|---|---|
-| Univariate baseline | 1 | 1 | — | — | — |
-| Multivariate LSTM | 2 | 4 | — | — | — |
-| Multivariate LSTM | 3 | 14 | — | — | — |
-| Multivariate LSTM | 4 | 27 | — | — | — |
-| Multivariate LSTM | 5 | 40 | — | — | — |
+1. **The train/validation split leaks.** `optimise.py` uses a shuffled `train_test_split` on 30-day windows that overlap by 29 days, so near-identical windows land on both sides, and validation loss will look better than real out-of-sample performance. Time-series evaluation needs a chronological split (train on earlier dates, test on later ones), ideally with walk-forward validation.
+2. **The scaler sees the future.** `StandardScaler` is fit on the *entire* series before splitting, so training statistics include test-period prices. It should be fit on the training period only.
+3. **No baseline and no test metrics.** `evaluate.py` is an unfinished stub (its data-loading call is a placeholder and it points at a checkpoint path that doesn't exist), so no RMSE or MAE has been produced, and there is no persistence or univariate comparison. The results table above is empty for that reason.
+4. **`train.py` has no entry point.** It defines `PriceLSTM`, `PriceDataset` and `train_model`, but nothing runs them directly; training only happens through `optimise.py`.
+5. **Optuna trials overwrite the saved model.** `train_model` writes `models/<item>/depthN_model.pt` on every improvement, and each trial calls it, so the checkpoint on disk is the last trial's best, not the study's best. The `epochs` value suggested at the end of the objective is never used (training is fixed at 20 epochs), and the pruning check runs after training has finished.
+6. **Scaling and level targets.** Predicting standardised price *levels* on a series that grows over seven years means test-period values fall outside the training range. Predicting returns (log differences) would be more stable and comparable across periods.
+7. **Small housekeeping bugs.** The README used to call the tuner `optimize.py` (it's `optimise.py`); `PriceDataset` has an unused `item_depth` option; `suggest_loguniform` is deprecated in current Optuna; the scraper's default depth and the tuner's interactive prompt are separate code paths.
 
-> **Note:** Evaluation figures to be populated after full training run. The depth system hypothesis is that deeper precursor inclusion improves accuracy for items with tightly coupled supply chains, with diminishing returns beyond depth 3 as lower-tier ore prices are more weakly correlated with finished bar prices.
+---
 
-## Future Improvements
+## Next steps
 
-    Implement Transformer-based models for enhanced temporal context
+In order:
 
-    Automate live prediction dashboards with real-time data ingestion
+1. Chronological split and train-only scaling (fixes limitations 1 and 2).
+2. Add the persistence and univariate baselines and finish `evaluate.py`, then fill in the results table (limitation 3).
+3. Add a `__main__` to `train.py` and stop the tuner overwriting the final checkpoint (limitations 4 and 5).
+4. Try log-return targets, and add walk-forward validation across several test periods.
+5. Only then look at architecture changes such as Transformers, or extensions to other item chains.
 
-    Extend support for additional item categories and dynamic precursor sets
+---
 
-    Build a web API for community access and integration with RuneScape tools
+## Tech stack
 
-    Explore arbitrage and flipping opportunity detection models
+Python 3.10+ · PyTorch (LSTM) · pandas / NumPy · scikit-learn (scaling) · Optuna (hyperparameter search) · requests / BeautifulSoup (data collection) · Matplotlib / Seaborn (exploration)
 
+---
 
+## Why this project
 
-Inspired by real-world commodity price modeling and my MSc dissertation work revisited with modern deep learning techniques.
+The aim was a forecasting problem where the structure of the data can be argued for, not just a model fitted to a CSV: prices in a crafting economy are linked by known dependencies, and "depth" turns that into an experiment with a clear yes/no question. The pipeline exists to answer that question. The part still to do is the honest test.
 
-
-
-
+*Inspired by earlier MSc dissertation work on time-series modelling, revisited with modern deep-learning tooling.*

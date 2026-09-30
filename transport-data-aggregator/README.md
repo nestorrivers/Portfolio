@@ -2,25 +2,26 @@
 
 A framework-agnostic Python library for ingesting UK public RSS data (weather, traffic and more) and normalising it into typed, predictable objects that a transport management system can consume without knowing anything about feed formats.
 
-> **Status: alpha (`0.1.0`).** The feed layer, configuration and weather normalisation are implemented. Traffic ingestion, the CLI handlers and the test suite are scaffolded but not yet built. See [Project status](#project-status).
+> **Status: alpha (`0.1.0`). Read this before the rest.**
+> The **feed layer** (fetch, retry, parse), **configuration** and the **weather normaliser** work. The **traffic domain, the CLI handlers, the concrete weather sources and the test suite are not built yet**: those parts are scaffolding, and the project structure below marks each one. What exists is the architecture and one working vertical slice through it.
 
 | | |
 |---|---|
 | **Distribution name** | `public-data-aggregator` |
 | **Import name** | `public_data` |
-| **Python** | 3.11+ |  
+| **Python** | 3.11+ |
 
 ---
 
 ## Why this exists
 
-Operational software such as scheduling, routing and dispatch tools benefits from context like weather and road conditions, but public feeds are inconsistent: different publishers, different formats, free-text fields and occasional outages. This library isolates that mess behind a small, stable interface:
+Operational software such as scheduling, routing and dispatch tools benefits from context like weather and road conditions, but public feeds are inconsistent: different publishers, different formats, free-text fields and occasional outages. This library separates the messy part from the useful part:
 
 - **Fetch** feeds reliably (timeouts, retries, explicit failure modes).
 - **Parse** them once, generically.
-- **Normalise** each domain into frozen, typed dataclasses with consistent units.
+- **Normalise** each domain into frozen, typed dataclasses.
 
-Consumers (a Django app, a CLI, a scheduled job) depend on the normalised schema, never on the feed.
+Consumers (a Django app, a CLI, a scheduled job) depend on the normalised schema and never on the feed.
 
 ## Architecture
 
@@ -48,36 +49,36 @@ Data flows through four layers. Each has one responsibility and knows only about
 ### Design decisions
 
 - **Domain-agnostic feed layer.** `RssEntry` carries only `title`, `link`, `summary` and `published`. Anything domain-specific lives in `domains/`.
-- **Sources are pluggable.** A feed is described by a `FeedSource` subclass (name + URL). Adding a publisher never touches parsing or normalisation code.
-- **Strict at the edges, lenient in the middle.** Network failures and malformed feeds raise (`FetchError`, `FeedError`). Normalisation is best-effort: a field that cannot be parsed becomes `None` rather than failing the whole batch.
+- **Sources are pluggable.** A feed is described by a `FeedSource` subclass (name and URL). Adding a publisher never touches parsing or normalisation code.
+- **Strict at the edges, lenient in the middle.** Network failures and malformed feeds raise (`FetchError`, `FeedError`). Normalisation is best-effort: an entry that can't be parsed comes back with `None` fields and doesn't fail the whole batch. (The granularity of that leniency is per entry, not per field: see [Known limitations](#known-limitations).)
 - **Immutable data.** Configuration, feed objects and domain entries are all frozen dataclasses.
 - **Centralised configuration.** All environment access goes through `config.py`; nothing else calls `os.getenv`.
-- **Typed throughout.** The package ships as `Typing :: Typed` and is configured for `mypy --strict`.
+- **Typed throughout.** The package is marked `Typing :: Typed` and configured for `mypy --strict`.
 
 ## Project structure
 
 ```
 src/
-├── cli.py                          # argparse CLI (weather, traffic subcommands)
+├── cli.py                          # argparse CLI: parsing only, handlers are stubs (misplaced, see limitations)
 └── public_data/
-    ├── config.py                   # immutable AppConfig loaded from environment
+    ├── config.py                   # ✅ immutable AppConfig loaded from environment
     ├── feeds/
-    │   ├── base.py                 # FeedSource ABC
-    │   ├── http.py                 # fetch_url: timeout + retry policy
-    │   ├── rss.py                  # parse_rss, RssFeed, RssEntry
-    │   └── errors.py               # FeedError, FetchError
+    │   ├── base.py                 # ✅ FeedSource ABC
+    │   ├── http.py                 # ✅ fetch_url: timeout + retry policy
+    │   ├── rss.py                  # ✅ parse_rss, RssFeed, RssEntry
+    │   └── errors.py               # ✅ FeedError, FetchError
     ├── domains/
     │   ├── weather/
-    │   │   ├── schemas.py          # WeatherEntry
-    │   │   ├── normaliser.py       # RssEntry → WeatherEntry
-    │   │   ├── services.py         # fetch_weather, iter_weather
-    │   │   ├── enums.py            # TemperatureDescription, WindDirection
-    │   │   └── sources.py          # concrete weather sources (in progress)
-    │   └── traffic/                # scaffolded, not yet implemented
-    ├── services/                   # placeholder public service layer for the CLI
+    │   │   ├── schemas.py          # ✅ WeatherEntry
+    │   │   ├── normaliser.py       # ✅ RssEntry → WeatherEntry (one description format)
+    │   │   ├── services.py         # ✅ fetch_weather, iter_weather
+    │   │   ├── enums.py            # ⚠️ defined but not yet used by the normaliser
+    │   │   └── sources.py          # ❌ contains a usage snippet, not a source (fails on import)
+    │   └── traffic/                # ❌ scaffolded, empty modules
+    ├── services/                   # ❌ placeholder public service layer for the CLI
     └── utils/
-examples/                           # fetch_weather.py, fetch_traffic.py (placeholders)
-tests/                              # feeds/, weather/, traffic/ (not yet written)
+examples/                           # ❌ placeholders
+tests/                              # ❌ directories exist, no tests written
 ```
 
 ## Installation
@@ -98,7 +99,7 @@ Runtime dependencies: `requests`, `feedparser`, `pydantic`, `python-dateutil`, `
 
 ## Configuration
 
-Configuration is read from environment variables **once, at import time** (`public_data.config.CONFIG`), so set them before importing the package. `.env` files are not loaded automatically; export the variables in your shell or load the file with your process manager. `.env.example` lists the two most common settings.
+Configuration is read from environment variables **once, at import time** (`public_data.config.CONFIG`), so set them before importing the package. `.env` files are not loaded automatically; export the variables in your shell or load the file with your process manager.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -142,9 +143,15 @@ except FeedError as exc:  # also catches FetchError
     print(f"Feed unavailable: {exc}")
 ```
 
+The weather normaliser expects the feed's description in this shape, which is what the examples and any source you write should produce:
+
+```
+Maximum Temperature: 12°C, Minimum Temperature: 5°C, Wind Direction: NE, Wind Speed: 15 km/h, Humidity: 75%
+```
+
 ### Command line
 
-The CLI defines the interface below. **Handlers are currently stubs** that echo their arguments; see [Project status](#project-status).
+The CLI defines the interface below, but **the handlers are stubs** that echo their arguments, and the `public-data` console script doesn't run yet (see [Known limitations](#known-limitations)).
 
 ```bash
 public-data weather --location <code-or-slug> [--days 3]
@@ -162,19 +169,15 @@ public-data traffic [--country england|scotland|wales|all]
 
 ### `WeatherEntry` (normalised)
 
-All temperatures are °C, wind speed is km/h, humidity is a percentage (0–100).
-
-| Field | Type |
-|---|---|
-| `day` | `date` |
-| `description` | `str` |
-| `min_temp_c`, `max_temp_c`, `avg_temp_c` | `float \| None` |
-| `wind_speed_kmh` | `float \| None` |
-| `wind_direction` | `str \| None` (cardinal: N, NE, E, …) |
-| `humidity_percent` | `int \| None` |
-| `location`, `country` | `str \| None` |
-
-`avg_temp_c` is the mean of min and max when both are present, otherwise whichever one exists.
+| Field | Type | Notes |
+|---|---|---|
+| `day` | `date` | From the entry's publish date (see the day-fallback limitation) |
+| `description` | `str` | The entry's summary, or its title if there's no summary |
+| `min_temp_c`, `max_temp_c`, `avg_temp_c` | `float \| None` | `avg` is the mean of min and max when both are present, otherwise whichever one exists |
+| `wind_speed_kmh` | `float \| None` | Read from the number in the feed's `Wind Speed` field; **the unit isn't checked or converted, so the feed must already report km/h** |
+| `wind_direction` | `str \| None` | Stored **as the feed writes it** (e.g. `NE`); no mapping to a fixed set of values yet |
+| `humidity_percent` | `int \| None` | 0 to 100 |
+| `location`, `country` | `str \| None` | From the source |
 
 ## Error handling and network behaviour
 
@@ -182,8 +185,8 @@ All temperatures are °C, wind speed is km/h, humidity is a percentage (0–100)
 |---|---|
 | Network-level failure (timeout, DNS, connection reset) | Retried up to `PUBLIC_DATA_HTTP_RETRIES` attempts with linear backoff, then `FetchError` |
 | HTTP status ≥ 400 | **Not retried**; `FetchError` immediately |
-| Malformed feed (feedparser `bozo` flag set) | `FeedError` |
-| Unparseable field during normalisation | Field is `None`; the entry is still returned |
+| Malformed feed (feedparser `bozo` flag set) | `FeedError`. This check is strict: it also fires for problems feedparser could recover from, such as an encoding mismatch |
+| Unparseable description during normalisation | That entry's parsed fields are all `None`; the entry is still returned |
 
 `FetchError` subclasses `FeedError`, so catching `FeedError` covers both.
 
@@ -205,7 +208,7 @@ Then expose it through `services/` and a CLI subcommand.
 ```bash
 pip install -e ".[dev]"
 
-pytest                 # tests live under tests/ (HTTP mocked with `responses`)
+pytest                 # tests live under tests/ (HTTP mocked with `responses`); none written yet
 ruff check .           # lint (E, F, B, I, UP, SIM)
 mypy src               # strict mode
 ```
@@ -218,24 +221,31 @@ mypy src               # strict mode
 | HTTP fetch with timeout and retry | Implemented |
 | RSS parsing | Implemented |
 | `FeedSource` abstraction | Implemented |
-| Weather schema, normaliser, service | Implemented |
-| Concrete weather source | Not yet: `weather/sources.py` currently holds a usage snippet |
+| Weather schema, normaliser, service | Implemented, for one description format |
+| Concrete weather source | Not built: `weather/sources.py` holds a usage snippet that references an undefined `BbcWeatherSource` |
 | Traffic domain | Scaffolded (empty modules) |
 | CLI | Argument parsing only; handlers print `[stub]` |
-| Tests | Not yet written |
+| Tests | Not written |
 
 ### Known limitations
 
-- **The `public-data` console script does not run yet.** `pyproject.toml` points at `public_data.cli:main`, but the CLI module lives at `src/cli.py` rather than inside the package. Moving it to `src/public_data/cli.py` resolves this.
-- **Weather parsing assumes one description format**: comma-separated `Key: value` pairs such as `Maximum Temperature: 12°C, Wind Speed: 15 km/h, Humidity: 75%`. Values with extra text (for example `12°C (54°F)`) fail to parse and yield `None` for that entry's parsed fields.
-- **Day fallback.** When a feed entry has no publish date, the normaliser tries to parse a weekday name from the title, which produces a placeholder date rather than a real one.
-- **`--days` is accepted but unused** until the weather handler is implemented.
+These are behaviours I've confirmed by running the code, listed roughly by how much they'd affect a real deployment.
+
+- **Weather parsing handles exactly one description format.** A realistic feed value such as `Maximum Temperature: 12°C (54°F)` or `Wind Speed: 15mph` fails to parse, and because all fields are parsed in one block, **one bad field sets every parsed field on that entry to `None`**, not just the bad one. Parsing each field independently (and using regular expressions instead of string replacement) is the next fix.
+- **Units are assumed, not converted.** Wind speed is read as a bare number and treated as km/h, whatever unit the feed states. The schema promises consistent units, so this needs either conversion or a stricter parse.
+- **Wind direction isn't normalised.** The README's schema aims for cardinal directions, but the value is stored as written, so `NE` and `North Easterly` would both come through unchanged. The `WindDirection` enum exists for this and isn't wired in yet.
+- **The `day` fallback is unreliable.** When a feed entry has no publish date, the normaliser tries to read a weekday name from the title, which produces a placeholder date (`1900-01-01`). If the title has no weekday, `day` is `None`, even though the field is typed as `date`.
+- **The `public-data` console script doesn't run.** `pyproject.toml` points at `public_data.cli:main`, but the CLI lives at `src/cli.py`, outside the package. Moving it to `src/public_data/cli.py` fixes this.
+- **`weather/sources.py` fails on import** with a `NameError` (it's a snippet, not a module).
+- **`--days` is accepted but unused** until the weather handler is written.
 
 ### Roadmap
 
-- [ ] Concrete weather sources
+In order of value:
+
+- [ ] Tests for `feeds/` and the weather normaliser using recorded feed fixtures, including the failure cases above
+- [ ] Per-field parsing with unit handling, and wiring in the `TemperatureDescription` and `WindDirection` enums
+- [ ] One concrete, working weather source
+- [ ] Move the CLI into the package and wire its handlers to the service layer
 - [ ] Traffic schema, normaliser and sources (England, Scotland, Wales)
-- [ ] Wire CLI handlers to the service layer, with `rich` output
-- [ ] Unit tests for `feeds/` and the normalisers, using recorded feed fixtures
-- [ ] Use the `TemperatureDescription` and `WindDirection` enums in normalised output
 - [ ] Runnable `examples/`
